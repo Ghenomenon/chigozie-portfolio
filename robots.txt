@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://chigozie-nkwopara.netlify.app/sitemap.xml

@@ -1,15 +1,17 @@
-# Chigozie Nkwopara — Portfolio Website
+# Chigozie Nkwopara: Portfolio Website
 
-Complete project by Chigozie Nkwopara.
+Source for [chigozie-nkwopara.netlify.app](https://chigozie-nkwopara.netlify.app). A static site in plain HTML, CSS and JavaScript, with no build step.
 
-## Download the project
+## Pages
 
-[Download the full project source](chigozie-portfolio-source.zip). Extract the ZIP into a folder named `chigozie-portfolio`. The archive contains the complete source, documentation and original folder structure.
+- Home, CV and four case studies: 30-day readmissions, USAID supply-chain delivery, warehouse inventory, and fulfilment process improvement.
+- The readmissions page has an interactive patient dashboard and a follow-up capacity explorer. Both run on aggregate counts in `assets/overview-data.json` and `assets/capacity-data.json`, which are produced by [the analysis code](https://github.com/Ghenomenon/readmissions-case-study). No patient-level records are included.
+- The USAID dashboard runs on `assets/usaid-shipments.csv`, four fields derived from the public USAID Supply Chain Shipment Pricing dataset.
 
-Read `README.md` inside the extracted folder for setup and use.
+## Deploy
 
-Static portfolio website with six pages, an interactive readmissions capacity explorer, a USAID dashboard and updated CV.
+Publish this folder to Netlify. `netlify.toml` sets the publish directory to the repository root, and `_redirects` serves the clean page URLs.
 
-To deploy on Netlify, extract the package and publish the folder containing `index.html`. The included `netlify.toml` uses `.` as the publish directory.
+## Related repositories
 
-[Healthcare case study](https://github.com/Ghenomenon/readmissions-case-study) · [Power BI dashboard](https://github.com/Ghenomenon/readmissions-powerbi)
+[Readmissions analysis](https://github.com/Ghenomenon/readmissions-case-study) · [Readmissions Power BI report](https://github.com/Ghenomenon/readmissions-powerbi) · [USAID supply chain](https://github.com/Ghenomenon/usaid-supply-chain-analytics) · [Stockroom analytics](https://github.com/Ghenomenon/stockroom-analytics-powerbi)

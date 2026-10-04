@@ -1,0 +1,463 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>USAID supply-chain delivery performance | Chigozie Nkwopara</title><meta name="description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><link rel="canonical" href="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:title" content="USAID supply-chain delivery performance"><meta property="og:description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><meta property="og:type" content="website"><meta property="og:url" content="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:image" content="https://chigozie-nkwopara.netlify.app/assets/social-preview.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><style>@scope (.case-body) { 
+      :root {
+        --ink: #17212f;
+        --muted: #5f6b78;
+        --line: #d6dfda;
+        --paper: #fff;
+        --wash: #f5f7f4;
+        --blue: #1d4f91;
+        --red: #b44b43;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--wash);
+        color: var(--ink);
+        font:
+          16px/1.55 Arial,
+          sans-serif;
+      }
+      header,
+      main,
+      footer {
+        max-width: 1120px;
+        margin: auto;
+        padding: 24px;
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+      }
+      a {
+        color: var(--blue);
+      }
+      h1 {
+        font-size: clamp(32px, 5vw, 52px);
+        line-height: 1.1;
+        margin: 0.35em 0;
+      }
+      .tag {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #355f5b;
+      }
+      h2 {
+        margin-top: 44px;
+        border-top: 1px solid var(--line);
+        padding-top: 22px;
+      }
+      .intro {
+        max-width: 760px;
+        font-size: 18px;
+      }
+      .dashboard {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        padding: 24px;
+        margin: 32px 0;
+      }
+      .dash-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: end;
+        flex-wrap: wrap;
+      }
+      .dash-head h2 {
+        border: 0;
+        padding: 0;
+        margin: 0;
+      }
+      .filters {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 20px 0;
+      }
+      .filters label {
+        font-size: 12px;
+        color: var(--muted);
+        display: grid;
+        gap: 4px;
+      }
+      .filters select {
+        font: inherit;
+        padding: 8px;
+        border: 1px solid #aebbb5;
+        background: #fff;
+      }
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+      .card,
+      .panel {
+        border: 1px solid var(--line);
+        padding: 16px;
+        background: #fbfcfb;
+      }
+      .card small {
+        color: var(--muted);
+        display: block;
+      }
+      .value {
+        font-size: 28px;
+        font-weight: bold;
+        margin-top: 5px;
+      }
+      .delta,
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .charts {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .panel h3 {
+        font-size: 15px;
+        margin: 0 0 12px;
+      }
+      .bar {
+        display: grid;
+        grid-template-columns: 150px 1fr 60px;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0;
+        font-size: 13px;
+      }
+      .track {
+        height: 16px;
+        background: #e8eeeb;
+      }
+      .fill {
+        height: 100%;
+        background: var(--red);
+      }
+      .table-wrap {
+        overflow: auto;
+      }
+      .detail {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      .detail th,
+      .detail td {
+        border-bottom: 1px solid var(--line);
+        padding: 9px;
+        text-align: left;
+        white-space: nowrap;
+      }
+      .detail th {
+        color: var(--muted);
+        font-weight: normal;
+      }
+      .pill {
+        color: var(--red);
+        font-weight: bold;
+      }
+      @media (max-width: 760px) {
+        .cards {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .charts {
+          grid-template-columns: 1fr;
+        }
+        .bar {
+          grid-template-columns: 110px 1fr 54px;
+        }
+      }
+      @media (max-width: 480px) {
+        header,
+        main,
+        footer {
+          padding: 16px;
+        }
+        .dashboard {
+          padding: 14px;
+        }
+      }
+     }</style><link rel="stylesheet" href="/assets/site.css"><script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script><script src="/assets/site.js" defer></script></head><body class=""><a class="skip" href="#main">Skip to content</a><header class="nav"><a class="brand" href="/" aria-label="Chigozie Nkwopara home"><span class="monogram">CN<span>.</span></span><span>Chigozie Nkwopara</span></a><button class="menu-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button><nav id="nav-links" aria-label="Main navigation"><a href="/#projects">Work</a><a href="/#about">About</a><a href="/#experience">Experience</a><a href="/#contact">Contact</a><a class="nav-cv" href="/cv">View CV <span aria-hidden="true">↗</span></a><button class="theme-toggle" aria-label="Switch to dark theme">Dark</button></nav></header><main id="main" class="case-body"><a class="crumb" href="/#projects">← Back to selected work</a>
+      <p class="tag">
+        Public-data portfolio project · R · SQL · Power BI · Python
+      </p>
+      <h1>USAID supply-chain delivery performance</h1>
+      <p class="intro">
+        Using 10,324 shipment records across 43 countries to identify delivery
+        risks and prioritise operational investigation.
+      </p>
+      <section class="dashboard" aria-labelledby="dashboard-title">
+        <div class="dash-head">
+          <div>
+            <p class="tag">Interactive evidence view</p>
+            <h2 id="dashboard-title">
+              Where are delivery delays concentrated?
+            </h2>
+          </div>
+          <p class="note">
+            Source: USAID Supply Chain Shipment Pricing Data · observed records
+          </p>
+        </div>
+        <div class="filters">
+          <label
+            >Country<select id="country">
+              <option>All countries</option>
+            </select></label
+          ><label
+            >Shipment mode<select id="mode">
+              <option>All modes</option>
+            </select></label
+          ><label
+            >Fulfilment route<select id="route">
+              <option>All routes</option>
+            </select></label
+          >
+        </div>
+        <div class="cards">
+          <div class="card">
+            <small>Shipments in view</small>
+            <div class="value" id="shipments">—</div>
+          </div>
+          <div class="card">
+            <small>Late-delivery rate</small>
+            <div class="value" id="late-rate">—</div>
+            <div class="delta">delivered after scheduled date</div>
+          </div>
+          <div class="card">
+            <small>Countries in view</small>
+            <div class="value" id="countries">—</div>
+          </div>
+          <div class="card">
+            <small>Average delay</small>
+            <div class="value" id="delay">—</div>
+            <div class="delta">days, late shipments only</div>
+          </div>
+        </div>
+        <div class="charts">
+          <div class="panel">
+            <h3>Late rate by fulfilment route</h3>
+            <div id="route-bars"></div>
+          </div>
+          <div class="panel">
+            <h3>Late rate by shipment mode</h3>
+            <div id="mode-bars"></div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top: 12px">
+          <h3>Highest-risk countries in the selected view</h3>
+          <div class="table-wrap">
+            <table class="detail">
+              <thead>
+                <tr>
+                  <th>Country</th>
+                  <th>Shipments</th>
+                  <th>Late rate</th>
+                  <th>Average delay</th>
+                </tr>
+              </thead>
+              <tbody id="country-rows"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="note" style="margin-bottom: 0">
+          Late means the recorded delivery date is after the scheduled delivery
+          date. Group differences are associations, not proof of causation.
+        </p>
+      </section>
+      <section class="dashboard" aria-labelledby="model-check-title">
+        <div class="dash-head">
+          <div>
+            <p class="tag">Predictive evidence</p>
+            <h2 id="model-check-title">Model check</h2>
+          </div>
+          <p class="note">Reported from the project’s Python analysis</p>
+        </div>
+        <div class="cards">
+          <div class="card"><small>Random Forest ROC-AUC</small><div class="value">0.82</div><div class="delta">held-out test set</div></div>
+          <div class="card"><small>Late shipments recalled</small><div class="value">89%</div><div class="delta">threshold tuned for recall</div></div>
+          <div class="card"><small>Validation approach</small><div class="value" style="font-size:20px">80/20 split</div><div class="delta">stratified, random_state 42</div></div>
+        </div>
+        <p class="note" style="margin-bottom:0"><strong>Use with care:</strong> this model supports prioritisation and proactive review, not operational deployment. The reported result comes from one held-out split; validate on later shipments, check calibration and class imbalance, and assess leakage before using predictions in production decisions.</p>
+      </section>
+      <h2>Problem</h2>
+      <p>
+        Late health-commodity shipments can disrupt supply planning. Which
+        delivery patterns warrant closer investigation, and how can analysis
+        support more reliable fulfilment?
+      </p>
+      <h2>Analysis</h2>
+      <p>
+        The project combines data preparation, SQL analysis, statistical
+        testing, dashboard reporting and predictive modelling. Delivery
+        performance is compared across fulfilment routes to help focus an
+        operational review.
+      </p>
+      <h2>Insight</h2>
+      <img
+        src="assets/usaid-fulfill-via-chart.png"
+        alt="Late-delivery rates by fulfilment route"
+        width="420"
+        style="max-width: 100%; height: auto"
+      />
+      <p>
+        These are observed group differences. Shipment mix, destination, customs
+        and other factors may contribute; the comparison alone cannot establish
+        causation.
+      </p>
+      <h2>Recommendation</h2>
+      <p>
+        Prioritise a review of the highest-risk route and countries. Examine
+        customs and handoff delays, compare like-for-like shipments, and
+        identify where delivery exceptions accumulate before proposing changes
+        to routing.
+      </p>
+      <h2>Business value</h2>
+      <p>
+        The analysis helps an operations team focus its investigation and decide
+        which delivery measures to monitor. Recommendations are analytical
+        proposals; no implemented savings or delivery improvements are claimed.
+      </p>
+      <h2>Explore the evidence</h2>
+      <p>
+        <a href="https://github.com/Ghenomenon/usaid-supply-chain-analytics"
+          >Repository and analysis files</a
+        >
+      </p>
+    </main><footer class="footer"><div><a class="brand" href="/">Chigozie Nkwopara<span class="accent">.</span></a><p>Business analysis. Data. Decisions.</p></div><div><a href="mailto:nkwoparachigozie@gmail.com">Email</a><a href="https://www.linkedin.com/in/chigozie-nkwopara-52000469/" target="_blank" rel="noopener">LinkedIn ↗</a><a href="https://github.com/Ghenomenon" target="_blank" rel="noopener">GitHub ↗</a></div><p class="small">© 2026 Chigozie Nkwopara</p></footer><script>
+      const s = {
+          rows: [],
+          country: "All countries",
+          mode: "All modes",
+          route: "All routes",
+        },
+        clean = (x) => (x || "").replace(/[\uFFFD]/g, "").trim();
+      function csv(t) {
+        const lines = t.split(/\r?\n/),
+          out = [];
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const a = [];
+          let q = "",
+            v = "",
+            quote = false;
+          for (const c of line + ",") {
+            if (c === '"') quote = !quote;
+            else if (c === "," && !quote) {
+              a.push(v);
+              v = "";
+            } else v += c;
+          }
+          out.push(a);
+        }
+        const h = out.shift();
+        return out.map((r) =>
+          Object.fromEntries(h.map((k, i) => [k, clean(r[i])])),
+        );
+      }
+      // Delay in days (delivered minus scheduled), calculated in Python from the source dates
+      function day(r) {
+        return r["Delay Days"] === "" ? null : Number(r["Delay Days"]);
+      }
+      function fill(id, key) {
+        const e = document.querySelector(id);
+        [...new Set(s.rows.map((r) => r[key]).filter(Boolean))]
+          .sort()
+          .forEach((v) => e.add(new Option(v, v)));
+      }
+      function bars(id, rows, key) {
+        const g = {};
+        rows.forEach((r) => {
+          const d = day(r);
+          if (d === null) return;
+          (g[r[key]] ??= { n: 0, l: 0 }).n++;
+          if (d > 0) g[r[key]].l++;
+        });
+        document.querySelector(id).innerHTML =
+          Object.entries(g)
+            .sort((a, b) => b[1].l / b[1].n - a[1].l / a[1].n)
+            .map(([k, v]) => {
+              const p = (v.l / v.n) * 100;
+              return (
+                '<div class="bar"><span>' +
+                k +
+                '</span><span class="track"><span class="fill" style="display:block;width:' +
+                p +
+                '%"></span></span><strong>' +
+                p.toFixed(1) +
+                "%</strong></div>"
+              );
+            })
+            .join("") || '<p class="note">No comparable records</p>';
+      }
+      function render() {
+        const r = s.rows.filter(
+            (x) =>
+              (s.country === "All countries" || x.Country === s.country) &&
+              (s.mode === "All modes" || x["Shipment Mode"] === s.mode) &&
+              (s.route === "All routes" || x["Fulfill Via"] === s.route),
+          ),
+          d = r.map((x) => ({ ...x, n: day(x) })).filter((x) => x.n !== null),
+          l = d.filter((x) => x.n > 0);
+        document.querySelector("#shipments").textContent =
+          r.length.toLocaleString();
+        document.querySelector("#late-rate").textContent =
+          (d.length ? (l.length / d.length) * 100 : 0).toFixed(1) + "%";
+        document.querySelector("#countries").textContent = new Set(
+          r.map((x) => x.Country),
+        ).size;
+        document.querySelector("#delay").textContent = (
+          l.length ? l.reduce((a, x) => a + x.n, 0) / l.length : 0
+        ).toFixed(1);
+        bars("#route-bars", r, "Fulfill Via");
+        bars("#mode-bars", r, "Shipment Mode");
+        const g = {};
+        d.forEach((x) => {
+          const z = (g[x.Country] ??= { n: 0, l: 0, d: 0 });
+          z.n++;
+          if (x.n > 0) {
+            z.l++;
+            z.d += x.n;
+          }
+        });
+        document.querySelector("#country-rows").innerHTML = Object.entries(g)
+          .filter(([, v]) => v.n >= 20)
+          .sort((a, b) => b[1].l / b[1].n - a[1].l / a[1].n)
+          .slice(0, 8)
+          .map(
+            ([k, v]) =>
+              "<tr><td>" +
+              k +
+              "</td><td>" +
+              v.n.toLocaleString() +
+              '</td><td class="pill">' +
+              ((v.l / v.n) * 100).toFixed(1) +
+              "%</td><td>" +
+              ((v.d || 0) / (v.l || 1)).toFixed(1) +
+              " days</td></tr>",
+          )
+          .join("");
+      }
+      fetch("/assets/usaid-shipments.csv")
+        .then((r) => r.text())
+        .then((t) => {
+          s.rows = csv(t);
+          fill("#country", "Country");
+          fill("#mode", "Shipment Mode");
+          fill("#route", "Fulfill Via");
+          ["country", "mode", "route"].forEach(
+            (k) =>
+              (document.querySelector("#" + k).onchange = (e) => {
+                s[k] = e.target.value;
+                render();
+              }),
+          );
+          render();
+        });
+    </script></body></html>
