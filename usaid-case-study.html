@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>USAID supply-chain delivery performance | Chigozie Nkwopara</title><meta name="description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><link rel="canonical" href="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:title" content="USAID supply-chain delivery performance"><meta property="og:description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><meta property="og:type" content="website"><meta property="og:url" content="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:image" content="https://chigozie-nkwopara.netlify.app/assets/social-preview.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><style>@scope (.case-body) { 
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>USAID Delivery Performance: where are late deliveries concentrated? | Chigozie Nkwopara</title><meta name="description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><link rel="canonical" href="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:title" content="USAID Delivery Performance"><meta property="og:description" content="USAID supply-chain delivery performance — methods, evidence and decisions from Chigozie Nkwopara’s portfolio."><meta property="og:type" content="website"><meta property="og:url" content="https://chigozie-nkwopara.netlify.app/usaid-case-study"><meta property="og:image" content="https://chigozie-nkwopara.netlify.app/assets/social-preview.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><style>@scope (.case-body) { 
       :root {
         --ink: #17212f;
         --muted: #5f6b78;
@@ -186,9 +186,9 @@
       }
      }</style><link rel="stylesheet" href="/assets/site.css"><script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script><script src="/assets/site.js" defer></script></head><body class=""><a class="skip" href="#main">Skip to content</a><header class="nav"><a class="brand" href="/" aria-label="Chigozie Nkwopara home"><span class="monogram">CN<span>.</span></span><span>Chigozie Nkwopara</span></a><button class="menu-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button><nav id="nav-links" aria-label="Main navigation"><a href="/#projects">Work</a><a href="/#about">About</a><a href="/#experience">Experience</a><a href="/#contact">Contact</a><a class="nav-cv" href="/cv">View CV <span aria-hidden="true">↗</span></a><button class="theme-toggle" aria-label="Switch to dark theme">Dark</button></nav></header><main id="main" class="case-body"><a class="crumb" href="/#projects">← Back to selected work</a>
       <p class="tag">
-        Public-data portfolio project · R · SQL · Power BI · Python
+        USAID Delivery Performance · Public-data project · R · SQL · Power BI · Python
       </p>
-      <h1>USAID supply-chain delivery performance</h1>
+      <h1>Where are late deliveries concentrated?</h1>
       <p class="intro">
         Using 10,324 shipment records across 43 countries to identify delivery
         risks and prioritise operational investigation.
@@ -281,10 +281,10 @@
         </div>
         <div class="cards">
           <div class="card"><small>Random Forest ROC-AUC</small><div class="value">0.82</div><div class="delta">held-out test set</div></div>
-          <div class="card"><small>Late shipments recalled</small><div class="value">89%</div><div class="delta">threshold tuned for recall</div></div>
-          <div class="card"><small>Validation approach</small><div class="value" style="font-size:20px">80/20 split</div><div class="delta">stratified, random_state 42</div></div>
+          <div class="card"><small>Late shipments recalled</small><div class="value">90%</div><div class="delta">default 0.5 cut-off, 23% precision</div></div>
+          <div class="card"><small>Validation approach</small><div class="value" style="font-size:20px">80/20 split</div><div class="delta">stratified; preprocessing fitted on training data only</div></div>
         </div>
-        <p class="note" style="margin-bottom:0"><strong>Use with care:</strong> this model supports prioritisation and proactive review, not operational deployment. The reported result comes from one held-out split; validate on later shipments, check calibration and class imbalance, and assess leakage before using predictions in production decisions.</p>
+        <p class="note" style="margin-bottom:0"><strong>Use with care:</strong> this model supports prioritisation and proactive review, not operational deployment. The result comes from one held-out split. Balanced class weights push the model towards catching late shipments, so most flags are false alarms. Validate on later shipments and check calibration before using predictions in production decisions. Feature importance shows what the model uses to predict, not what causes delays.</p>
       </section>
       <h2>Problem</h2>
       <p>
