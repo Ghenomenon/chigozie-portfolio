@@ -225,3 +225,42 @@ JOIN dbo.cost_assumptions cat ON cat.cost_type = 'category' AND cat.cost_key = s
 JOIN dbo.cost_assumptions pay ON pay.cost_type = 'payment'  AND pay.cost_key = s.payment_method
 CROSS JOIN (SELECT fixed_fee FROM dbo.cost_assumptions WHERE cost_type = 'fulfilment') ful
 ORDER BY breakeven_order_value DESC;
+
+/* ---------- Step 7: Sensitivity check ---------- */
+-- One assumption at a time: shift one category's product cost by -10 / +10 points,
+-- or set shipping to $5 / $11, keep everything else at the base case,
+-- and see how far overall contribution margin moves (base = 25.1%).
+WITH scenarios AS (
+    SELECT c.cost_key AS driver, v.shift AS cost_shift, CAST(NULL AS DECIMAL(8,2)) AS ship_fee
+    FROM dbo.cost_assumptions c
+    CROSS JOIN (VALUES (-0.10), (0.10)) v(shift)
+    WHERE c.cost_type = 'category'
+    UNION ALL
+    SELECT 'Shipping per order', 0, v.fee
+    FROM (VALUES (5.00), (11.00)) v(fee)
+),
+results AS (
+    SELECT
+        sc.driver,
+        sc.cost_shift,
+        sc.ship_fee,
+        SUM(v.total_revenue) AS revenue,
+        SUM(v.total_revenue
+            - v.total_revenue * (cat.rate + CASE WHEN sc.driver = v.product_category THEN sc.cost_shift ELSE 0 END)
+            - v.payment_fee
+            - COALESCE(sc.ship_fee, v.fulfilment_cost)) AS contribution
+    FROM scenarios sc
+    CROSS JOIN dbo.vw_order_costs v
+    JOIN dbo.cost_assumptions cat
+      ON cat.cost_type = 'category' AND cat.cost_key = v.product_category
+    GROUP BY sc.driver, sc.cost_shift, sc.ship_fee
+)
+SELECT
+    driver,
+    MIN(contribution / revenue) AS low_margin,
+    MAX(contribution / revenue) AS high_margin,
+    MAX(contribution / revenue) - MIN(contribution / revenue) AS swing
+FROM results
+GROUP BY driver
+ORDER BY swing DESC;
+-- Expected: Electronics swings margin from about 20.8% to 29.4%, the widest range.

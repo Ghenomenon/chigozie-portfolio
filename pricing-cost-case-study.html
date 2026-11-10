@@ -2,7 +2,7 @@
 <link rel="canonical" href="https://chigozie-nkwopara.netlify.app/pricing-cost-case-study"><meta property="og:title" content="Online Sales Pricing &amp; Cost Analysis"><meta property="og:description" content="Where an online shop makes its margin, and what a discount or shipping change would do. SQL cost model and scenario explorer."><meta property="og:type" content="website"><meta property="og:url" content="https://chigozie-nkwopara.netlify.app/pricing-cost-case-study"><meta property="og:image" content="https://chigozie-nkwopara.netlify.app/assets/social-preview.png"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/site.css">
 <style>@scope (.case-body) {
 .pc{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:24px;margin:25px 0}
-.pc-controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;align-items:end}
+.pc-controls{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;align-items:end}
 .pc-controls label{font-size:12px;font-weight:600;display:grid;gap:8px}
 .pc-controls output{font:22px Georgia,serif;font-weight:400}
 .pc-controls input[type=range]{width:100%;accent-color:var(--green)}
@@ -29,17 +29,27 @@
 .pc-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .pc-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-top:14px;font-size:12px;color:var(--muted)}
 .pc-foot button{font:inherit;font-size:12px;padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:var(--paper);color:var(--ink);cursor:pointer}
-@media (max-width:760px){.pc{padding:16px}.pc-controls{grid-template-columns:1fr}.pc-cards{grid-template-columns:repeat(2,1fr)}.pc-charts{grid-template-columns:1fr}.pc-bar{grid-template-columns:100px 1fr 46px}.pc-card strong{font-size:24px}}
+.tz{margin:20px 0;font-size:12px}
+.tz-row{display:grid;grid-template-columns:230px 1fr 80px;gap:10px;align-items:center;margin:7px 0}
+.tz-row>span:first-child{color:var(--muted)}
+.tz-track{position:relative;height:16px;background:var(--soft);border-radius:2px}
+.tz-bar{position:absolute;top:0;bottom:0;background:var(--green);border-radius:2px}
+.tz-base{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);margin-left:-1px}
+.tz-row strong{font-variant-numeric:tabular-nums;text-align:right}
+.tz-axis .tz-ticks{position:relative;height:16px;color:var(--muted)}
+.tz-ticks span{position:absolute;transform:translateX(-50%)}
+@media (max-width:760px){.tz-row strong{white-space:nowrap;font-size:11px}.tz-row{grid-template-columns:1fr 84px;gap:4px 8px}.tz-row>span:first-child{grid-column:1/-1}.tz-row .tz-track,.tz-axis .tz-ticks{grid-column:1}}
+@media (max-width:1000px){.pc-controls{grid-template-columns:1fr 1fr}}@media (max-width:760px){.pc{padding:16px}.pc-controls{grid-template-columns:1fr}.pc-cards{grid-template-columns:repeat(2,1fr)}.pc-charts{grid-template-columns:1fr}.pc-bar{grid-template-columns:100px 1fr 46px}.pc-card strong{font-size:24px}}
 }</style>
 <script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script><script src="/assets/site.js" defer></script></head>
 <body class=""><a class="skip" href="#main">Skip to content</a><header class="nav"><a class="brand" href="/" aria-label="Chigozie Nkwopara home"><span class="monogram">CN<span>.</span></span><span>Chigozie Nkwopara</span></a><button class="menu-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button><nav id="nav-links" aria-label="Main navigation"><a href="/#projects">Work</a><a href="/#about">About</a><a href="/#experience">Experience</a><a href="/#contact">Contact</a><a class="nav-cv" href="/cv">View CV <span aria-hidden="true">↗</span></a><button class="theme-toggle" aria-label="Switch to dark theme">Dark</button></nav></header>
 <main id="main" class="case-body">
 <a class="crumb" href="/#projects">← Back to selected work</a>
-<p class="tag">Online Sales Pricing &amp; Cost · Public sample data · SQL · Cost modelling · Scenario analysis</p>
+<p class="tag">Online Sales Pricing &amp; Cost · Public sample data · SQL · Cost modelling · Scenario and sensitivity analysis</p>
 <h1>Where does an online shop actually make its money?</h1>
 <p>A pricing and cost review of 240 online orders across six product categories. Revenue tells one story. Contribution after product cost, payment fees and shipping tells another.</p>
-<p class="note">This is an independent analysis of a public sample dataset, not a client engagement. The dataset has no cost data, so every cost figure rests on stated benchmark assumptions. The model is built so real costs can replace them.</p>
-<p><a class="btn" href="#explorer">Try the scenario explorer ↓</a></p>
+<p class="note">This is an independent analysis of a public sample dataset, not a client engagement. The dataset has no cost data, so every cost figure rests on stated benchmark assumptions. The model is built so real costs can replace them, and a <a href="#sensitivity">sensitivity check</a> shows which findings depend on them.</p>
+<p class="actions"><a class="btn" href="#explorer">Try the scenario explorer ↓</a><a class="btn secondary" href="https://github.com/Ghenomenon/online-sales-pricing-cost" target="_blank" rel="noopener">View the SQL on GitHub ↗</a></p>
 
 <h2>Business question</h2>
 <p>Which products and price points carry the business, and where would a discount or a change in shipping cost hurt margin most?</p>
@@ -55,11 +65,12 @@
 <p>One limit shapes every conclusion: each category was sold in a single region with a single payment method. Category, region and payment effects cannot be separated in this data.</p>
 
 <h2 id="explorer">Scenario explorer</h2>
-<p>Move the sliders to test a store-wide discount or a different shipping cost per order. Product cost stays fixed: a discount reduces what you charge, not what you pay the supplier.</p>
+<p>Move the sliders to test a store-wide discount, a different shipping cost per order, or product costs above or below the assumptions. Product cost stays fixed: a discount reduces what you charge, not what you pay the supplier.</p>
 <section class="pc" aria-label="Pricing and cost scenario explorer">
 <div class="pc-controls">
 <label for="pc-disc">Discount on price <output id="pc-disc-out" for="pc-disc">0%</output><input id="pc-disc" type="range" min="0" max="30" step="1" value="0"></label>
 <label for="pc-ship">Shipping cost per order <output id="pc-ship-out" for="pc-ship">$8.00</output><input id="pc-ship" type="range" min="0" max="15" step="0.5" value="8"></label>
+<label for="pc-cost">Product cost vs assumption <output id="pc-cost-out" for="pc-cost">±0 pts</output><input id="pc-cost" type="range" min="-10" max="10" step="1" value="0"></label>
 <label for="pc-cat">Category<select id="pc-cat"><option value="">All categories</option></select></label>
 </div>
 <div class="pc-cards" aria-live="polite">
@@ -84,11 +95,31 @@
 <tbody>
 <tr><td>Revenue fell 40.9% from January–April ($50,653) to May–August ($29,915)</td><td>The fall came from fewer high-ticket electronics and appliance orders, not lower prices on the same items. Investigate demand and stock for big-ticket lines before cutting prices.</td></tr>
 <tr><td>Items under $50 are 39.6% of orders but 8.4% of revenue. Items over $250 are 24.6% of orders and 65.8% of revenue.</td><td>Order count is a poor guide to value here. Track revenue and contribution per order alongside volume.</td></tr>
-<tr><td>Electronics brings 43.4% of revenue but only 27.9% of estimated contribution, at a 16.2% margin</td><td>Protect electronics price points. A 5% discount on electronics alone cuts its contribution by about 30%.</td></tr>
-<tr><td>Books keep a 19.3% margin after costs. A book order needs about $22 to break even.</td><td>A flat shipping cost takes a large share of small orders. Test a minimum order value, a small-order shipping charge, or bundles. Books and clothing already sell about three units per order.</td></tr>
+<tr><td>Electronics brings 43.4% of revenue but only 27.9% of estimated contribution, at a 16.2% margin. This holds in 99.9% of <a href="#sensitivity">cost scenarios</a>.</td><td>Protect electronics price points. A 5% discount on electronics alone cuts its contribution by about 30%.</td></tr>
+<tr><td>Books keep a 19.3% margin after costs. A book order needs about $22 to break even. The exact margin is <a href="#sensitivity">sensitive to cost assumptions</a>.</td><td>A flat shipping cost takes a large share of small orders. Test a minimum order value, a small-order shipping charge, or bundles. Books and clothing already sell about three units per order.</td></tr>
 <tr><td>84 of 232 products make up 80% of revenue</td><td>Revenue is spread wider than a typical 80/20 pattern. Range decisions need contribution by product, which real costs would allow.</td></tr>
 </tbody></table></div>
 
+<h2 id="sensitivity">Sensitivity check: which findings survive different costs?</h2>
+<p>The cost assumptions are the weakest part of this study, so I tested how far the conclusions depend on them. Two checks, both run on the same 240 orders.</p>
+<h3>1. One assumption at a time</h3>
+<p>Each bar shows overall contribution margin when one assumption moves across its range and everything else stays at the base case. The line marks the base margin of 25.1%.</p>
+<div class="tz" role="img" aria-label="Tornado chart. Electronics product cost moves overall margin from 20.8% to 29.4%, the widest range. Books product cost moves it least, 24.9% to 25.3%."><div class="tz-row"><span>Electronics product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:15.0%;width:71.7%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>20.8–29.4%</strong></div><div class="tz-row"><span>Home Appliances product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:31.7%;width:38.3%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>22.8–27.4%</strong></div><div class="tz-row"><span>Sports product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:35.8%;width:30.0%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>23.3–26.9%</strong></div><div class="tz-row"><span>Clothing product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:42.5%;width:16.7%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>24.1–26.1%</strong></div><div class="tz-row"><span>Shipping $5 to $11 per order</span><span class="tz-track"><span class="tz-bar" style="left:43.3%;width:15.0%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>24.2–26.0%</strong></div><div class="tz-row"><span>Payment fees ±0.5 pts</span><span class="tz-track"><span class="tz-bar" style="left:46.7%;width:8.3%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>24.6–25.6%</strong></div><div class="tz-row"><span>Beauty Products product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:48.3%;width:5.0%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>24.8–25.4%</strong></div><div class="tz-row"><span>Books product cost ±10 pts</span><span class="tz-track"><span class="tz-bar" style="left:49.2%;width:3.3%"></span><span class="tz-base" style="left:50.8%"></span></span><strong>24.9–25.3%</strong></div><div class="tz-row tz-axis"><span></span><span class="tz-ticks"><span style="left:8.3%">20%</span><span style="left:50.0%">25%</span><span style="left:91.7%">30%</span></span><strong></strong></div></div>
+<p>Electronics product cost matters most. Its swing of 8.6 points is nearly twice the next largest, because electronics is 43% of revenue. It is the first real number to collect: one supplier price list would remove the biggest single source of uncertainty.</p>
+<h3>2. All assumptions at once</h3>
+<p>I ran 10,000 scenarios. In each, every category’s product cost moved independently by up to 10 points either way, shipping fell anywhere from $5 to $11 per order, and payment fees moved by up to half a point.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Finding</th><th>Holds in</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Electronics earns a smaller share of contribution than of revenue</td><td>99.9% of scenarios</td><td><strong>Robust.</strong> Electronics product cost would have to be 16 points lower than assumed (64% of price, not 80%) to change this.</td></tr>
+<tr><td>A 5% electronics discount cuts its contribution sharply</td><td>Every case tested</td><td><strong>Robust.</strong> The cut ranges from 19% (product cost at 70% of price) to 44% (85%).</td></tr>
+<tr><td>Electronics has one of the two lowest margins</td><td>89% of scenarios</td><td><strong>Robust.</strong> It has the lowest margin in 57%.</td></tr>
+<tr><td>Books has one of the two lowest margins</td><td>75% of scenarios</td><td><strong>Likely.</strong> Small orders stay exposed to the flat shipping cost.</td></tr>
+<tr><td>Clothing has the highest margin</td><td>69% of scenarios</td><td><strong>Likely.</strong> Beauty Products overtakes it in most of the rest.</td></tr>
+<tr><td>Books margin is below 20%</td><td>54% of scenarios</td><td><strong>Fragile.</strong> Close to a coin toss. Do not act on the exact figure.</td></tr>
+</tbody></table></div>
+<p>Across all 10,000 scenarios, overall margin stays between 19.9% and 30.2% in nine cases out of ten. The recommendations that rely on robust findings stand: protect electronics prices, and test a small-order charge or bundles. The exact Books margin and the overall margin figure should wait for real costs.</p>
+<p class="caption">Ranges are uniform and independent, which is a simple choice: real costs often move together. The <a href="/downloads/pricing-cost-analysis.sql">SQL script</a> includes the one-at-a-time check as a scenario query.</p>
 <h2>Cost assumptions</h2>
 <p>These are illustrative benchmarks, chosen to be plausible for each category. They are not the seller’s real costs.</p>
 <div class="table-wrap"><table>
@@ -110,31 +141,31 @@
 </ul>
 
 <h2>Inspect the evidence</h2>
-<p><a href="/downloads/pricing-cost-analysis.sql">SQL script: tables, data checks, cost view and analysis queries</a> · <a href="/downloads/cost-assumptions.csv">Cost assumptions (CSV)</a> · <a href="/downloads/pricing-category-month.csv">Order totals by category and month (CSV)</a></p>
+<p><a href="https://github.com/Ghenomenon/online-sales-pricing-cost" target="_blank" rel="noopener">GitHub repository: SQL, sensitivity script and Power BI build guide ↗</a> · <a href="/downloads/pricing-cost-analysis.sql">SQL script: tables, data checks, cost view and analysis queries</a> · <a href="/downloads/cost-assumptions.csv">Cost assumptions (CSV)</a> · <a href="/downloads/pricing-category-month.csv">Order totals by category and month (CSV)</a></p>
 <a href="/cv">View CV</a>
 </main><footer class="footer"><div><a class="brand" href="/">Chigozie Nkwopara<span class="accent">.</span></a><p>Business analysis. Data. Decisions.</p></div><div><a href="mailto:nkwoparachigozie@gmail.com">Email</a><a href="https://www.linkedin.com/in/chigozie-nkwopara/" target="_blank" rel="noopener">LinkedIn ↗</a><a href="https://github.com/Ghenomenon" target="_blank" rel="noopener">GitHub ↗</a></div><p class="small">© 2026 Chigozie Nkwopara</p></footer>
 <script>
-(()=>{const $=s=>document.querySelector(s);const disc=$('#pc-disc'),ship=$('#pc-ship'),cat=$('#pc-cat');if(!disc)return;
+(()=>{const $=s=>document.querySelector(s);const disc=$('#pc-disc'),ship=$('#pc-ship'),cat=$('#pc-cat'),cadj=$('#pc-cost');if(!disc)return;
 const usd0=v=>(v<0?'−$':'$')+Math.abs(Math.round(v)).toLocaleString('en-GB'),usd2=v=>'$'+v.toFixed(2),pct=v=>(v*100).toFixed(1)+'%',sgn=v=>(v>0?'+':v<0?'−':'')+Math.abs(v*100).toFixed(1)+'%';
 const esc=t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 fetch('/assets/pricing-data.json').then(r=>{if(!r.ok)throw new Error();return r.json()}).then(d=>{
 const A=d.assumptions,cats=Object.keys(d.categories).sort();cats.forEach(c=>cat.add(new Option(c,c)));
-function calc(rows,dp,sh){let rev=0,cogs=0,fees=0,ful=0,orders=0;rows.forEach(([c,,o,,r])=>{const p=A.payment[d.categories[c].payment],r2=r*(1-dp);rev+=r2;cogs+=r*A.category[c];fees+=r2*p[0]+o*p[1];ful+=o*sh;orders+=o});const con=rev-cogs-fees-ful;return{rev,cost:cogs+fees+ful,con,mar:rev?con/rev:0,orders}}
+function calc(rows,dp,sh,ca=0){let rev=0,cogs=0,fees=0,ful=0,orders=0;rows.forEach(([c,,o,,r])=>{const p=A.payment[d.categories[c].payment],r2=r*(1-dp);rev+=r2;cogs+=r*(A.category[c]+ca);fees+=r2*p[0]+o*p[1];ful+=o*sh;orders+=o});const con=rev-cogs-fees-ful;return{rev,cost:cogs+fees+ful,con,mar:rev?con/rev:0,orders}}
 function bars(id,items,fmt,max,cls){$(id).innerHTML=items.map(x=>'<div class="pc-bar"><span>'+esc(x.label)+'</span><span class="pc-track"><span class="pc-fill'+(cls?cls(x):'')+'" style="width:'+Math.max(0,Math.min(100,x.v/max*100)).toFixed(1)+'%"></span></span><strong>'+fmt(x.v)+'</strong></div>').join('')}
 function pairs(id,items){$(id).innerHTML=items.map(x=>'<div class="pc-bar pc-pair"><span>'+esc(x.label)+'</span><span><span class="pc-track"><span class="pc-fill muted" style="width:'+(x.a*100/x.max).toFixed(1)+'%"></span></span><span class="pc-track"><span class="pc-fill" style="width:'+(Math.max(0,x.b)*100/x.max).toFixed(1)+'%"></span></span></span><strong>'+pct(x.b)+'</strong></div>').join('')}
-function update(){const dp=+disc.value/100,sh=+ship.value,c=cat.value;$('#pc-disc-out').textContent=disc.value+'%';$('#pc-ship-out').textContent=usd2(sh);
-const rows=d.rows.filter(r=>!c||r[0]===c),s=calc(rows,dp,sh),b=calc(rows,0,A.fulfilment);
+function update(){const dp=+disc.value/100,sh=+ship.value,c=cat.value,ca=+cadj.value/100;$('#pc-cost-out').textContent=(cadj.value>0?'+':cadj.value<0?'−':'±')+Math.abs(cadj.value)+' pts';$('#pc-disc-out').textContent=disc.value+'%';$('#pc-ship-out').textContent=usd2(sh);
+const rows=d.rows.filter(r=>!c||r[0]===c),s=calc(rows,dp,sh,ca),b=calc(rows,0,A.fulfilment);
 $('#pc-rev').textContent=usd0(s.rev);$('#pc-cost').textContent=usd0(s.cost);$('#pc-con').textContent=usd0(s.con);$('#pc-mar').textContent=pct(s.mar);
-const same=dp===0&&sh===A.fulfilment,set=(id,t,down)=>{const e=$(id);e.textContent=same?'Baseline':t;e.className=!same&&down?'down':''};
+const same=dp===0&&sh===A.fulfilment&&ca===0,set=(id,t,down)=>{const e=$(id);e.textContent=same?'Baseline':t;e.className=!same&&down?'down':''};
 set('#pc-rev-d',sgn(s.rev/b.rev-1)+' vs baseline',s.rev<b.rev);set('#pc-con-d',b.con?sgn((s.con-b.con)/Math.abs(b.con))+' vs baseline':'',s.con<b.con);set('#pc-mar-d',((s.mar-b.mar)*100>=0?'+':'−')+Math.abs((s.mar-b.mar)*100).toFixed(1)+' pts vs baseline',s.mar<b.mar);
-const per=cats.map(k=>({label:k,...calc(d.rows.filter(r=>r[0]===k),dp,sh)})),tr=per.reduce((t,x)=>t+x.rev,0),tc=per.reduce((t,x)=>t+x.con,0);
+const per=cats.map(k=>({label:k,...calc(d.rows.filter(r=>r[0]===k),dp,sh,ca)})),tr=per.reduce((t,x)=>t+x.rev,0),tc=per.reduce((t,x)=>t+x.con,0);
 const m=per.slice().sort((a,b)=>b.mar-a.mar).map(x=>({label:x.label,v:x.mar}));bars('#pc-margin',m,pct,Math.max(.05,...m.map(x=>x.v)),x=>x.v<.2?' low':'');
 const sh2=per.slice().sort((a,b)=>b.rev-a.rev).map(x=>({label:x.label,a:x.rev/tr,b:tc?x.con/tc:0}));const mx=Math.max(...sh2.map(x=>Math.max(x.a,x.b)));pairs('#pc-share',sh2.map(x=>({...x,max:mx})));
 const months={};rows.forEach(([,mo,,,r])=>{months[mo]=(months[mo]||0)+r*(1-dp)});const mk=Object.keys(months).sort(),names=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 bars('#pc-month',mk.map(k=>({label:names[+k.slice(5)-1]+' '+k.slice(0,4),v:months[k]})),v=>'$'+(v/1000).toFixed(1)+'k',Math.max(...mk.map(k=>months[k])));
 $('#pc-status').textContent=(c||'All categories')+(c?' · '+d.categories[c].region+' · '+d.categories[c].payment:'')+' · '+s.orders+' orders. Costs use the stated assumptions.'}
 const to=d.bands.reduce((t,x)=>t+x[1],0),trv=d.bands.reduce((t,x)=>t+x[3],0),bm=Math.max(...d.bands.map(x=>Math.max(x[1]/to,x[3]/trv)));pairs('#pc-band',d.bands.map(x=>({label:x[0],a:x[1]/to,b:x[3]/trv,max:bm})));
-[disc,ship].forEach(e=>e.addEventListener('input',update));cat.addEventListener('change',update);$('#pc-reset').addEventListener('click',()=>{disc.value=0;ship.value=A.fulfilment;cat.value='';update()});update()
-}).catch(()=>{[disc,ship,cat].forEach(e=>e.disabled=true);$('#pc-status').textContent='The explorer could not load. The SQL and data downloads below still work.'})})();
+[disc,ship,cadj].forEach(e=>e.addEventListener('input',update));cat.addEventListener('change',update);$('#pc-reset').addEventListener('click',()=>{disc.value=0;ship.value=A.fulfilment;cadj.value=0;cat.value='';update()});update()
+}).catch(()=>{[disc,ship,cadj,cat].forEach(e=>e.disabled=true);$('#pc-status').textContent='The explorer could not load. The SQL and data downloads below still work.'})})();
 </script>
 </body></html>

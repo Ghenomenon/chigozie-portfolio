@@ -15,4 +15,4 @@ Publish this folder to Netlify. `netlify.toml` sets the publish directory to the
 
 ## Related repositories
 
-[Readmissions analysis](https://github.com/Ghenomenon/readmissions-case-study) · [Readmissions Power BI report](https://github.com/Ghenomenon/readmissions-powerbi) · [USAID supply chain](https://github.com/Ghenomenon/usaid-supply-chain-analytics) · [Stockroom analytics](https://github.com/Ghenomenon/stockroom-analytics-powerbi)
+[Readmissions analysis](https://github.com/Ghenomenon/readmissions-case-study) · [Readmissions Power BI report](https://github.com/Ghenomenon/readmissions-powerbi) · [USAID supply chain](https://github.com/Ghenomenon/usaid-supply-chain-analytics) · [Stockroom analytics](https://github.com/Ghenomenon/stockroom-analytics-powerbi) · [Online sales pricing and cost](https://github.com/Ghenomenon/online-sales-pricing-cost)
