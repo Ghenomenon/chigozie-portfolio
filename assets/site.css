@@ -38,3 +38,4 @@ main.case-body h2{border-top-color:var(--line)}
 main.case-body p.tag{color:var(--muted)}
 main.case-body a:not(.btn){color:var(--green)}
 main.case-body .track{background:var(--soft)}
+@media(min-width:1001px){.project-grid{grid-template-columns:repeat(2,1fr)}}
