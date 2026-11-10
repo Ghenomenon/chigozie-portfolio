@@ -299,7 +299,27 @@
         performance is compared across fulfilment routes to help focus an
         operational review.
       </p>
+      <h2>Data integrity: two faults found and fixed</h2>
+      <p>
+        I rebuilt every headline number in at least two tools, and the cross-checks
+        exposed two faults that would have changed the results.
+      </p>
+      <ul>
+        <li><strong>Freight-cost averages 30–40% too low.</strong> R wrote missing
+        values as the text "NA". SQLite then read them as zero instead of leaving
+        them out. I traced the gap between the R and SQL figures and fixed it with a
+        targeted update.</li>
+        <li><strong>Every row counted twice.</strong> Windows line endings in the
+        CSV export made Power Query load each shipment twice. That inflated total
+        shipments and diluted the late rate until I fixed the import.</li>
+      </ul>
       <h2>Insight</h2>
+      <p>
+        <strong>The clearest difference is by fulfilment route.</strong> Shipments
+        routed through a regional distribution centre with no defined Incoterm were
+        late 17.2% of the time, against 5.3% for shipments sent directly from the
+        vendor.
+      </p>
       <img
         src="assets/usaid-fulfill-via-chart.png"
         alt="Late-delivery rates by fulfilment route"
@@ -307,7 +327,7 @@
         style="max-width: 100%; height: auto"
       />
       <p>
-        These are observed group differences. Shipment mix, destination, customs
+        These are observed group differences. Order size, product, destination, customs
         and other factors may contribute; the comparison alone cannot establish
         causation.
       </p>

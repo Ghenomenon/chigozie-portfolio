@@ -55,7 +55,7 @@
 <p>Which products and price points carry the business, and where would a discount or a change in shipping cost hurt margin most?</p>
 
 <h2>Data and approach</h2>
-<p>The <a href="https://www.kaggle.com/datasets/shreyanshverma27/online-sales-dataset-popular-marketplace-data" target="_blank" rel="noopener">Online Sales Dataset (Popular Marketplace Data)</a> holds 240 orders, one per day from 1 January to 27 August 2024: category, product, units, unit price, revenue, region and payment method.</p>
+<p>The <a href="https://www.kaggle.com/datasets/shreyanshverma27/online-sales-dataset-popular-marketplace-data" target="_blank" rel="noopener">Online Sales Dataset (Popular Marketplace Data)</a> holds 240 orders, one per day from 1 January to 27 August 2024: category, product, units, unit price, revenue, region and payment method. All amounts are in US dollars.</p>
 <ul>
 <li><strong>Data checks in SQL.</strong> Revenue equals units × price on every row. No missing or impossible values. Two product names needed care on load: one contains commas, one an accented character.</li>
 <li><strong>One cost view.</strong> A SQL Server view joins each order to an assumptions table and adds product cost, payment fee, fulfilment cost and contribution. Every query reads from that view, so a changed assumption flows through everything.</li>
@@ -65,7 +65,7 @@
 <p>One limit shapes every conclusion: each category was sold in a single region with a single payment method. Category, region and payment effects cannot be separated in this data.</p>
 
 <h2 id="explorer">Scenario explorer</h2>
-<p>Move the sliders to test a store-wide discount, a different shipping cost per order, or product costs above or below the assumptions. Product cost stays fixed: a discount reduces what you charge, not what you pay the supplier.</p>
+<p>Move the sliders to test a store-wide discount, a different shipping cost per order, or product costs above or below the assumptions. A discount lowers what you charge, not what you pay the supplier.</p>
 <section class="pc" aria-label="Pricing and cost scenario explorer">
 <div class="pc-controls">
 <label for="pc-disc">Discount on price <output id="pc-disc-out" for="pc-disc">0%</output><input id="pc-disc" type="range" min="0" max="30" step="1" value="0"></label>
@@ -96,7 +96,7 @@
 <tr><td>Revenue fell 40.9% from January–April ($50,653) to May–August ($29,915)</td><td>The fall came from fewer high-ticket electronics and appliance orders, not lower prices on the same items. Investigate demand and stock for big-ticket lines before cutting prices.</td></tr>
 <tr><td>Items under $50 are 39.6% of orders but 8.4% of revenue. Items over $250 are 24.6% of orders and 65.8% of revenue.</td><td>Order count is a poor guide to value here. Track revenue and contribution per order alongside volume.</td></tr>
 <tr><td>Electronics brings 43.4% of revenue but only 27.9% of estimated contribution, at a 16.2% margin. This holds in 99.9% of <a href="#sensitivity">cost scenarios</a>.</td><td>Protect electronics price points. A 5% discount on electronics alone cuts its contribution by about 30%.</td></tr>
-<tr><td>Books keep a 19.3% margin after costs. A book order needs about $22 to break even. The exact margin is <a href="#sensitivity">sensitive to cost assumptions</a>.</td><td>A flat shipping cost takes a large share of small orders. Test a minimum order value, a small-order shipping charge, or bundles. Books and clothing already sell about three units per order.</td></tr>
+<tr><td>Books keep a 19.3% margin after costs. A book order needs about $22 to break even. The exact margin is <a href="#sensitivity">sensitive to cost assumptions</a>.</td><td>A flat shipping cost takes a large share of small orders. Test a minimum order value, a small-order shipping charge, or bundles. Books and clothing already sell about three to four units per order.</td></tr>
 <tr><td>84 of 232 products make up 80% of revenue</td><td>Revenue is spread wider than a typical 80/20 pattern. Range decisions need contribution by product, which real costs would allow.</td></tr>
 </tbody></table></div>
 
@@ -112,7 +112,7 @@
 <thead><tr><th>Finding</th><th>Holds in</th><th>Verdict</th></tr></thead>
 <tbody>
 <tr><td>Electronics earns a smaller share of contribution than of revenue</td><td>99.9% of scenarios</td><td><strong>Robust.</strong> Electronics product cost would have to be 16 points lower than assumed (64% of price, not 80%) to change this.</td></tr>
-<tr><td>A 5% electronics discount cuts its contribution sharply</td><td>Every case tested</td><td><strong>Robust.</strong> The cut ranges from 19% (product cost at 70% of price) to 44% (85%).</td></tr>
+<tr><td>A 5% electronics discount cuts its contribution sharply</td><td>Every case tested</td><td><strong>Robust.</strong> The cut ranges from 19% (product cost at 70% of price) to 79% (90%), across the full range tested. The higher the true cost, the more a discount hurts.</td></tr>
 <tr><td>Electronics has one of the two lowest margins</td><td>89% of scenarios</td><td><strong>Robust.</strong> It has the lowest margin in 57%.</td></tr>
 <tr><td>Books has one of the two lowest margins</td><td>75% of scenarios</td><td><strong>Likely.</strong> Small orders stay exposed to the flat shipping cost.</td></tr>
 <tr><td>Clothing has the highest margin</td><td>69% of scenarios</td><td><strong>Likely.</strong> Beauty Products overtakes it in most of the rest.</td></tr>
