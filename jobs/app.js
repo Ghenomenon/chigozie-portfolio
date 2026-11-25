@@ -31,6 +31,11 @@
     return n;
   }
 
+  // Same guess as the feed makes (jobs/scripts/lib.mjs). Older saved records have no flag, so work it out from the name.
+  const AGENCY_WORDS = /\b(recruit\w*|staffing|resourcing|headhunt\w*|personnel|appointments|executive search|search (and|&) selection|interim)\b/i;
+  const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic)/i;
+  const isRecruiter = (j) => j.agency ?? (AGENCY_KNOWN.test(j.company || '') || AGENCY_WORDS.test(j.company || ''));
+
   const safeUrl = (u) => (/^https:\/\//i.test(u) ? u : '#');
   const gbp = (n) => '£' + Math.round(n).toLocaleString('en-GB');
 
@@ -66,7 +71,8 @@
     chips.append(el('span', { class: 'chip', text: j.location || 'UK' }));
     if (j.workMode !== 'onsite') chips.append(el('span', { class: 'chip good', text: j.workMode === 'remote' ? 'Remote' : 'Hybrid' }));
     chips.append(el('span', { class: 'chip' + (j.salaryMin || j.salaryMax ? '' : ' warn'), text: salaryText(j) }));
-    if (j.sponsorLicence === 'licensed') chips.append(el('span', { class: 'chip good', text: 'Licensed sponsor' }));
+    if (isRecruiter(j)) chips.append(el('span', { class: 'chip warn', title: 'A recruiter advertises for clients. Its licence says little about the real employer.', text: 'Recruiter · ask who the employer is' }));
+    else if (j.sponsorLicence === 'licensed') chips.append(el('span', { class: 'chip good', text: 'Licensed sponsor' }));
     else if (j.sponsorLicence === 'not-found') chips.append(el('span', { class: 'chip warn', text: 'Not on register' }));
     else chips.append(el('span', { class: 'chip warn', text: 'Sponsor unchecked' }));
     if (j.sponsorship === 'offered') chips.append(el('span', { class: 'chip good', text: 'Advert mentions sponsorship' }));
@@ -211,11 +217,28 @@
   const getCv = () => store.get('jr.cv', '') || defaultCv;
   let applyJob = null;
 
-  function buildPrompt(j, advertText) {
+  let advertText = '';       // from the saved summary, the link, or the person's edits
+  let shots = [];            // screenshot files, kept in memory only
+  let shotUrls = [];
+
+  const READ_REASONS = {
+    'bad-url': 'That link is not valid.',
+    'not-allowed': 'This site is not on the list the reader can open. Add a screenshot instead.',
+    blocked: 'The site blocked the reader, which is common for Indeed and LinkedIn. Add a screenshot instead.',
+    empty: 'The page had no advert text I could read. Add a screenshot instead.',
+    'not-html': 'The link did not open a web page. Add a screenshot instead.',
+    'too-large': 'The page was too large to read. Add a screenshot instead.',
+    'fetch-failed': 'The reader could not open that page. Try again, or add a screenshot.',
+  };
+
+  function buildPrompt(j) {
     const pay = salaryText(j);
-    const advert = advertText.trim()
-      || j.summary
-      || '(Not saved. Open the advert link. If you cannot read it, tell me and I will paste the text.)';
+    const hasText = advertText.trim().length > 0;
+    let advert;
+    if (hasText && shots.length) advert = `${advertText.trim()}\n\n(A screenshot of the advert is also attached. Use it where the text above is missing or unclear.)`;
+    else if (hasText) advert = advertText.trim();
+    else if (shots.length) advert = `(The advert is in the attached screenshot${shots.length > 1 ? 's' : ''}. Read it from there.)`;
+    else advert = '(Not available. Open the advert link. If you cannot read it, tell me and I will add a screenshot.)';
     return [
       'Help me apply for this job. Follow these rules.',
       '- Use only facts that appear in MY CV below. Do not invent employers, dates, tools, qualifications or numbers.',
@@ -226,7 +249,7 @@
       '',
       'JOB',
       `Title: ${j.title}`,
-      `Company: ${j.company}`,
+      `Company: ${j.company}${isRecruiter(j) ? ' (a recruiter, so the real employer may differ)' : ''}`,
       `Location: ${j.location || 'UK'}${j.workMode !== 'onsite' ? ` (${j.workMode})` : ''}`,
       `Pay: ${pay}`,
       `Advert link: ${j.url}`,
@@ -247,18 +270,69 @@
   }
 
   function refreshPrompt() {
+    if (applyJob) $('prompt-preview').value = buildPrompt(applyJob);
+    const canShare = shots.length && typeof navigator.canShare === 'function' && navigator.canShare({ files: shots });
+    $('share').hidden = !canShare;
+    $('claude-note').textContent = shots.length
+      ? (canShare
+        ? 'Tap Share, then choose Claude. If the screenshot does not arrive, open Claude, paste the prompt and attach it yourself.'
+        : 'Open Claude, paste the prompt, then attach your screenshot. Check every line of the result.')
+      : 'You get a tailored CV, a cover letter and draft answers. Check every line before you use it.';
+  }
+
+  function showAdvertText() {
+    $('advert').value = advertText;
+    $('advert-details').hidden = !advertText;
+  }
+
+  function renderShots() {
+    shotUrls.forEach((u) => URL.revokeObjectURL(u));
+    shotUrls = shots.map((f) => URL.createObjectURL(f));
+    const box = $('shot-list');
+    box.replaceChildren();
+    shots.forEach((f, i) => {
+      box.append(el('div', { class: 'thumb' },
+        el('img', { src: shotUrls[i], alt: `Screenshot ${i + 1}` }),
+        el('button', { type: 'button', 'aria-label': `Remove screenshot ${i + 1}`, onclick: () => { shots.splice(i, 1); renderShots(); }, text: '×' })));
+    });
+    refreshPrompt();
+  }
+
+  async function readFromLink() {
     if (!applyJob) return;
-    $('prompt-preview').value = buildPrompt(applyJob, $('advert').value);
+    const note = $('read-note');
+    const btn = $('read-link');
+    btn.disabled = true;
+    note.textContent = 'Reading the advert';
+    try {
+      const res = await fetch(`/.netlify/functions/advert?url=${encodeURIComponent(applyJob.url)}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data.ok && data.text) {
+        advertText = data.text;
+        showAdvertText();
+        note.textContent = `Read ${data.text.length.toLocaleString('en-GB')} characters from the advert. Check them below.`;
+      } else {
+        note.textContent = READ_REASONS[data.reason] || READ_REASONS['fetch-failed'];
+      }
+    } catch {
+      note.textContent = READ_REASONS['fetch-failed'];
+    }
+    btn.disabled = false;
+    refreshPrompt();
   }
 
   function openApply(j) {
     applyJob = j;
+    shots = [];
+    advertText = j.summary || '';
+    renderShots();
+    showAdvertText();
     $('apply-title').textContent = j.title;
     $('apply-sub').textContent = `${j.company} · ${j.location || 'UK'}`;
-    $('advert').value = '';
     $('advert-note').textContent = j.summary
-      ? 'The saved advert text is included. Paste the full text to replace it.'
-      : 'No advert text is saved for this role. Open the advert, copy the text and paste it here.';
+      ? 'The advert text is already saved. Read it again from the link, or add a screenshot.'
+      : 'Read the advert from its link, or add a screenshot of it.';
+    $('read-note').textContent = '';
     $('open-advert').href = safeUrl(j.url);
     $('copy-note').textContent = '';
     $('did-apply').checked = false;
@@ -266,6 +340,7 @@
     refreshPrompt();
     const d = $('apply');
     if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+    if (!j.summary) readFromLink();
   }
 
   async function copyPrompt() {
@@ -273,7 +348,7 @@
     const text = $('prompt-preview').value;
     try {
       await navigator.clipboard.writeText(text);
-      $('copy-note').textContent = 'Copied. Now open Claude and paste it.';
+      $('copy-note').textContent = shots.length ? 'Copied. Open Claude, paste it and attach your screenshot.' : 'Copied. Now open Claude and paste it.';
     } catch {
       const area = $('prompt-preview');
       area.closest('details').open = true;
@@ -282,12 +357,34 @@
     }
   }
 
-  $('advert').addEventListener('input', refreshPrompt);
+  async function sharePrompt() {
+    refreshPrompt();
+    try {
+      await navigator.share({ files: shots, text: $('prompt-preview').value, title: applyJob ? applyJob.title : 'Job advert' });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      $('copy-note').textContent = 'Sharing did not work. Copy the prompt, open Claude and attach the screenshot.';
+    }
+  }
+
+  $('read-link').addEventListener('click', readFromLink);
+  $('shots').addEventListener('change', (e) => {
+    const picked = [...e.target.files].filter((f) => f.type.startsWith('image/')).slice(0, 4 - shots.length);
+    shots.push(...picked);
+    e.target.value = '';
+    renderShots();
+  });
+  $('advert').addEventListener('input', () => { advertText = $('advert').value; refreshPrompt(); });
   $('copy').addEventListener('click', copyPrompt);
+  $('share').addEventListener('click', sharePrompt);
   $('did-apply').addEventListener('change', (e) => { $('mark-applied').disabled = !e.target.checked; });
   $('mark-applied').addEventListener('click', () => {
     if (applyJob) setStatus(applyJob, 'Applied');
     $('apply').close();
+  });
+  $('apply').addEventListener('close', () => {
+    shotUrls.forEach((u) => URL.revokeObjectURL(u));
+    shotUrls = []; shots = [];
   });
 
   // CV editor in Settings

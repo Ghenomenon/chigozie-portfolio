@@ -91,9 +91,18 @@
 
       <ol class="steps">
         <li>
-          <strong>Add the advert text</strong>
+          <strong>Get the advert</strong>
           <p id="advert-note" class="muted"></p>
-          <textarea id="advert" rows="5" placeholder="Paste the full advert here for a better result"></textarea>
+          <div class="row stack">
+            <button type="button" id="read-link" class="btn">Read the advert from its link</button>
+            <label class="btn">Add screenshot<input id="shots" type="file" accept="image/*" multiple hidden></label>
+          </div>
+          <p id="read-note" class="muted" role="status"></p>
+          <div id="shot-list" class="thumbs"></div>
+          <details id="advert-details" hidden>
+            <summary>Advert text found</summary>
+            <textarea id="advert" rows="6" aria-label="Advert text"></textarea>
+          </details>
         </li>
         <li>
           <strong>Copy the prompt</strong>
@@ -103,7 +112,8 @@
         </li>
         <li>
           <strong>Paste it into Claude</strong>
-          <p class="muted">You get a tailored CV, a cover letter and draft answers. Check every line before you use it.</p>
+          <p id="claude-note" class="muted">You get a tailored CV, a cover letter and draft answers. Check every line before you use it.</p>
+          <button type="button" id="share" class="btn wide" hidden>Share prompt and screenshot</button>
           <a id="open-claude" class="btn wide" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Open Claude</a>
         </li>
         <li>
