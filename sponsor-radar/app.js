@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -90,6 +90,7 @@ function card(j) {
   else if (j.sponsorLicence === 'not-found') chips.append(el('span', { class: 'chip warn', text: 'Not on register' }));
   else chips.append(el('span', { class: 'chip warn', text: 'Sponsor unchecked' }));
   if (j.sponsorship === 'offered') chips.append(el('span', { class: 'chip good', text: 'Advert mentions sponsorship' }));
+  if (p.needsSponsorship && isHardToSponsor(j) && j.sponsorship !== 'offered') chips.append(el('span', { class: 'chip warn', title: thresholds?.lowSkill?.text || 'Check the occupation code on gov.uk.', text: 'Rarely sponsored · check gov.uk' }));
   if (p.needsSponsorship && belowSponsorThreshold(j, thresholds)) chips.append(el('span', { class: 'chip warn', text: 'Pay may be below visa threshold' }));
   chips.append(el('span', { class: 'chip', text: `${j.source} · ${j.posted}` }));
   if (t?.applied) chips.append(el('span', { class: 'chip done', text: `Applied ${t.applied}` }));
@@ -170,7 +171,7 @@ function renderSummary() {
     ].filter(Boolean).join(' · ')
     : 'Not set up yet.';
   $('threshold-note').textContent = thresholds
-    ? `Visa pay thresholds used for the warning chip: new entrant ${gbp(thresholds.newEntrant)}, general ${gbp(thresholds.general)}. Figures from ${thresholds.asOf}. The real threshold depends on the job. Check gov.uk.`
+    ? `Visa pay thresholds used for the warning chip: new entrant ${gbp(thresholds.newEntrant)}, general ${gbp(thresholds.general)}. Figures from ${thresholds.asOf}. The real threshold depends on the job. Check gov.uk.${thresholds.lowSkill ? ' ' + thresholds.lowSkill.text : ''}`
     : '';
 }
 

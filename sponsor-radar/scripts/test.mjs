@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
-  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter,
+  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -22,7 +22,7 @@ test('feed keeps analyst titles and drops noise, but not seniority', () => {
   assert.equal(dropReason(mk(), feed, today), null);
   assert.equal(dropReason(mk({ title: 'Senior Data Analyst' }), feed, today), null);
   assert.equal(dropReason(mk({ title: 'AI Trainer analyst' }), feed, today), 'title-excluded');
-  assert.equal(dropReason(mk({ title: 'Warehouse Operative' }), feed, today), 'title');
+  assert.equal(dropReason(mk({ title: 'Project Manager' }), feed, today), 'title');
   assert.equal(dropReason(mk({ company: 'DataAnnotation' }), feed, today), 'company');
   assert.equal(dropReason(mk({ posted: '2026-10-01' }), feed, today), 'too-old');
 });
@@ -182,4 +182,45 @@ test('a recruiter licence earns no score bonus and says to ask who the employer 
   assert.ok(!rec.reasons.includes('Employer holds a sponsor licence'));
   assert.ok(emp.reasons.includes('Employer holds a sponsor licence'));
   assert.ok(emp.score > rec.score);
+});
+
+test('the feed accepts non-analyst role families', () => {
+  for (const title of ['Support Worker', 'Healthcare Assistant', 'Customer Service Advisor', 'Warehouse Operative', 'Kitchen Assistant', 'Delivery Driver', 'Senior Carer']) {
+    assert.equal(dropReason(mk({ title }), feed, today), null, title);
+  }
+  assert.equal(dropReason(mk({ title: 'Project Manager' }), feed, today), 'title');
+  assert.ok(feed.queries.includes('support worker') && feed.queries.includes('data analyst'));
+});
+
+test('titles are grouped into role families', () => {
+  const cases = { 'Data Analyst': 'analyst', 'Support Worker': 'support-care', 'Senior Carer': 'support-care', 'Healthcare Assistant': 'support-care', 'Customer Service Advisor': 'service-admin', 'Receptionist': 'service-admin', 'Warehouse Operative': 'warehouse', 'Delivery Driver': 'warehouse', 'Kitchen Assistant': 'hospitality-retail', 'Chef': 'hospitality-retail', 'Project Manager': 'other' };
+  for (const [t, f] of Object.entries(cases)) assert.equal(jobFamily(t), f, t);
+  assert.equal(mk({ title: 'Support Worker' }).family, 'support-care');
+  assert.ok(isHardToSponsor({ title: 'Support Worker' }));
+  assert.ok(!isHardToSponsor({ title: 'Data Analyst' }));
+  assert.equal(isHardToSponsor({ title: 'Support Worker', family: 'analyst' }), false, 'stored family wins');
+});
+
+test('hard-to-sponsor roles score lower for people who need sponsorship, unless the advert offers it', () => {
+  const p = profile({ needsSponsorship: true });
+  const support = scoreJob(mk({ title: 'Support Worker' }), p, thr);
+  const analyst = scoreJob(mk({ title: 'Data Analyst' }), p, thr);
+  assert.ok(support.reasons.includes('This type of role is rarely sponsored'));
+  assert.ok(!analyst.reasons.includes('This type of role is rarely sponsored'));
+  assert.ok(analyst.score > support.score);
+  const offered = scoreJob({ ...mk({ title: 'Support Worker' }), sponsorship: 'offered' }, p, thr);
+  assert.ok(!offered.reasons.includes('This type of role is rarely sponsored'));
+  const noNeed = scoreJob(mk({ title: 'Support Worker' }), profile({ needsSponsorship: false }), thr);
+  assert.ok(!noNeed.reasons.includes('This type of role is rarely sponsored'));
+});
+
+test('searching support worker finds support roles and nothing else', () => {
+  const p = profile({ roles: ['support worker'] });
+  assert.ok(matchesProfile(mk({ title: 'Support Worker - Supported Living' }), p));
+  assert.ok(!matchesProfile(mk({ title: 'Data Analyst' }), p));
+});
+
+test('health and care register entries count as licensed', () => {
+  const csv = ['Organisation Name,Town/City,County,Type & Rating,Route', '"Kind Care Ltd",Leeds,,Worker (A rating),Health and Care Worker'].join('\n');
+  assert.ok(sponsorMapFromCsv(csv).has(normCompany('Kind Care')));
 });
