@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -44,17 +44,18 @@ const gbp = (n) => '£' + Math.round(n).toLocaleString('en-GB');
 
 const RATE_WORDS = { hour: 'an hour', day: 'a day', week: 'a week' };
 const money = (n) => '£' + (Math.round(n * 100) % 100 === 0 ? Math.round(n).toLocaleString('en-GB') : n.toFixed(2));
+const range = (lo, hi, f) => (lo && hi && lo !== hi ? `${f(lo)} to ${f(hi)}` : f(lo || hi));
 
+// Pay as the advert quoted it, with the other form beside it.
 function salaryText(j) {
   const unit = j.salaryUnit;
   if (unit && unit !== 'year') {
-    const lo = j.rateMin, hi = j.rateMax;
-    const rate = lo && hi && lo !== hi ? `${money(lo)} to ${money(hi)}` : money(lo || hi);
     const top = j.salaryMax || j.salaryMin;
-    return `${rate} ${RATE_WORDS[unit]} (about ${gbp(top)} a year)`;
+    return `${range(j.rateMin, j.rateMax, money)} ${RATE_WORDS[unit]} (about ${gbp(top)} a year)`;
   }
-  if (j.salaryMin && j.salaryMax && j.salaryMin !== j.salaryMax) return `${gbp(j.salaryMin)} to ${gbp(j.salaryMax)}`;
-  if (j.salaryMin || j.salaryMax) return gbp(j.salaryMin || j.salaryMax);
+  if (j.salaryMin || j.salaryMax) {
+    return `${range(j.salaryMin, j.salaryMax, gbp)} a year (about ${range(j.salaryMin && j.salaryMin / 1950, j.salaryMax && j.salaryMax / 1950, money)} an hour)`;
+  }
   return 'Pay not stated';
 }
 
@@ -101,6 +102,7 @@ function card(j) {
   else chips.append(el('span', { class: 'chip warn', text: 'Sponsor unchecked' }));
   if (j.sponsorship === 'offered') chips.append(el('span', { class: 'chip good', text: 'Advert mentions sponsorship' }));
   if (p.needsSponsorship && isHardToSponsor(j) && j.sponsorship !== 'offered') chips.append(el('span', { class: 'chip warn', title: thresholds?.lowSkill?.text || 'Check the occupation code on gov.uk.', text: 'Rarely sponsored · check gov.uk' }));
+  if (belowMinimumWage(j, thresholds)) chips.append(el('span', { class: 'chip warn', title: 'Compared with the over-21 rate. Part-time or unstated hours can make this wrong.', text: `Below the minimum wage (${money(thresholds.minimumWage.over21)} an hour)` }));
   if (p.needsSponsorship && belowSponsorThreshold(j, thresholds)) chips.append(el('span', { class: 'chip warn', text: 'Pay may be below visa threshold' }));
   chips.append(el('span', { class: 'chip', text: `${j.source} · ${j.posted}` }));
   if (t?.applied) chips.append(el('span', { class: 'chip done', text: `Applied ${t.applied}` }));
@@ -174,14 +176,14 @@ function renderSummary() {
   $('search-summary').textContent = p
     ? [
       p.roles.length ? `Roles: ${p.roles.join(', ')}` : 'Roles: any analyst title',
-      p.salaryFloor ? `Pay floor ${gbp(p.salaryFloor)}` : 'No pay floor',
+      p.salaryFloor || p.hourlyFloor ? `Pay floor ${[p.salaryFloor && `${gbp(p.salaryFloor)} a year`, p.hourlyFloor && `${money(p.hourlyFloor)} an hour`].filter(Boolean).join(' or ')}` : 'No pay floor',
       p.regions.length ? `Places: ${p.regions.join(', ')}${p.includeRemote ? ' and remote' : ''}` : 'UK-wide',
       p.needsSponsorship ? 'Needs sponsorship' : 'No sponsorship needed',
       p.hideAgencies ? 'Recruiters hidden' : null,
     ].filter(Boolean).join(' · ')
     : 'Not set up yet.';
   $('threshold-note').textContent = thresholds
-    ? `Visa pay thresholds used for the warning chip: new entrant ${gbp(thresholds.newEntrant)}, general ${gbp(thresholds.general)}. Figures from ${thresholds.asOf}. The real threshold depends on the job. Check gov.uk.${thresholds.lowSkill ? ' ' + thresholds.lowSkill.text : ''}`
+    ? `Visa pay thresholds used for the warning chip: new entrant ${gbp(thresholds.newEntrant)}, general ${gbp(thresholds.general)}. Figures from ${thresholds.asOf}. The real threshold depends on the job. Check gov.uk.${thresholds.lowSkill ? ' ' + thresholds.lowSkill.text : ''}${thresholds.minimumWage ? ` Minimum wage used for the flag: ${money(thresholds.minimumWage.over21)} an hour for over-21s, as of ${thresholds.minimumWage.asOf}.` : ''}`
     : '';
 }
 
@@ -246,6 +248,10 @@ function openSetup() {
   $('s-roles').value = p.roles.join(', ');
   $('s-exclude').value = p.exclude.join(', ');
   $('s-floor').value = p.salaryFloor || '';
+  $('s-hfloor').value = p.hourlyFloor || thresholds?.minimumWage?.over21 || '';
+  $('wage-hint').textContent = thresholds?.minimumWage
+    ? `Minimum wage from ${thresholds.minimumWage.asOf}: ${money(thresholds.minimumWage.over21)} for 21 and over, ${money(thresholds.minimumWage.age18to20)} for 18 to 20, ${money(thresholds.minimumWage.under18)} for under 18. Check gov.uk.`
+    : '';
   $('s-lo').value = p.salaryTarget?.[0] || '';
   $('s-hi').value = p.salaryTarget?.[1] || '';
   $('s-regions').value = p.regions.join(', ');
@@ -264,6 +270,7 @@ $('setup-form').addEventListener('submit', (e) => {
     roles: list($('s-roles').value).map((x) => x.toLowerCase()),
     exclude: list($('s-exclude').value).map((x) => x.toLowerCase()),
     salaryFloor: num($('s-floor').value),
+    hourlyFloor: num($('s-hfloor').value),
     salaryTarget: lo && hi && lo <= hi ? [lo, hi] : null,
     regions: list($('s-regions').value).map((x) => x.toLowerCase()),
     includeRemote: $('s-remote').checked,

@@ -8,5 +8,14 @@
     "asOf": "2025-07-22",
     "text": "Most warehouse, kitchen, retail, customer service and support roles no longer qualify for a Skilled Worker visa, and care worker roles closed to new overseas applicants in 2025. Check the job's occupation code on gov.uk before you apply.",
     "source": "https://www.gov.uk/skilled-worker-visa/your-job"
+  },
+  "minimumWage": {
+    "asOf": "2026-04-01",
+    "over21": 12.71,
+    "age18to20": 10.85,
+    "under18": 8.0,
+    "apprentice": 8.0,
+    "source": "https://www.gov.uk/national-minimum-wage-rates",
+    "note": "Hourly rates for the pay year starting in April. Update these figures when gov.uk changes them."
   }
 }
