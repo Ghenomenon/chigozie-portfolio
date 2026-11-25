@@ -1,0 +1,55 @@
+name: Daily job radar
+
+on:
+  schedule:
+    - cron: "30 6 * * *"   # 06:30 UTC every day
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-jobs
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    env:
+      NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run tests
+        run: node --test jobs/scripts/test.mjs
+
+      - name: Fetch jobs
+        id: fetch
+        env:
+          REED_API_KEY: ${{ secrets.REED_API_KEY }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+        run: node jobs/scripts/fetch-jobs.mjs
+
+      - name: Commit results
+        run: |
+          git config user.name "job-radar"
+          git config user.email "job-radar@users.noreply.github.com"
+          git add jobs/data/jobs.json
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "Update job list"
+            git push
+          fi
+
+      - name: Morning alert
+        if: ${{ steps.fetch.outputs.new_count != '0' && env.NTFY_TOPIC != '' }}
+        env:
+          NEW_COUNT: ${{ steps.fetch.outputs.new_count }}
+        run: |
+          curl -s -H "Title: Job radar" -H "Click: https://chigozie-nkwopara.netlify.app/jobs/" \
+            -d "$NEW_COUNT new analyst roles today" "https://ntfy.sh/$NTFY_TOPIC"

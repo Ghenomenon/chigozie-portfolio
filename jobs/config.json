@@ -1,0 +1,65 @@
+{
+  "queries": [
+    "junior data analyst",
+    "data analyst",
+    "excel analyst",
+    "reporting analyst",
+    "business analyst",
+    "operations analyst",
+    "supply chain analyst",
+    "business intelligence analyst"
+  ],
+  "titleMustMatch": ["analyst", "analytics", "insight", "reporting", "bi developer"],
+  "titleExclude": [
+    "senior", "lead", "principal", "head of", "manager", "director", "staff ",
+    "apprentice", "intern", "placement", "trainer", "annotation", "fraud", "aml",
+    "kyc", "sar ", "security", "quality control", "tax", "payroll", "actuar",
+    "clinical", "laboratory", "chemist", "forensic", "delay analy", "it support",
+    "cyber", "soc analyst", "devops", "scientist", "engineer"
+  ],
+  "companyExclude": ["dataannotation", "data annotation"],
+  "salary": {
+    "min": 26000,
+    "target": [28000, 35000],
+    "dropIfMinAbove": 50000
+  },
+  "maxAgeDays": 14,
+  "keepDays": 45,
+  "homeRegionWords": ["newcastle", "gateshead", "south shields", "sunderland", "durham", "north east", "tyne"],
+  "sponsorRefusal": [
+    "no sponsorship",
+    "no visa sponsorship",
+    "unable to sponsor",
+    "not able to sponsor",
+    "cannot sponsor",
+    "can't sponsor",
+    "cannot offer sponsorship",
+    "cannot provide sponsorship",
+    "do not offer sponsorship",
+    "does not offer sponsorship",
+    "do not provide sponsorship",
+    "does not provide sponsorship",
+    "will not sponsor",
+    "won't sponsor",
+    "not offer visa",
+    "sponsorship is not available",
+    "sponsorship is not offered",
+    "unable to offer sponsorship",
+    "unable to provide sponsorship",
+    "not eligible for sponsorship",
+    "not provide sponsorship"
+  ],
+  "sponsorOffered": [
+    "visa sponsorship available",
+    "sponsorship available",
+    "sponsorship is available",
+    "sponsorship is offered",
+    "will sponsor",
+    "can sponsor",
+    "able to sponsor",
+    "skilled worker visa",
+    "offer visa sponsorship",
+    "offer sponsorship",
+    "provide sponsorship"
+  ]
+}
