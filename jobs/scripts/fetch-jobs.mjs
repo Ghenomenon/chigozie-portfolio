@@ -41,7 +41,7 @@ async function fromReed(query) {
   const key = process.env.REED_API_KEY;
   if (!key) return [];
   const auth = { Authorization: 'Basic ' + Buffer.from(`${key}:`).toString('base64') };
-  const url = `https://www.reed.co.uk/api/1.0/search?keywords=${encodeURIComponent(query)}&minimumSalary=${cfg.salary.min}&resultsToTake=100`;
+  const url = `https://www.reed.co.uk/api/1.0/search?keywords=${encodeURIComponent(query)}&resultsToTake=100`;
   const data = await getJson(url, auth);
   const out = [];
   for (const r of data.results || []) {
@@ -67,7 +67,7 @@ async function fromAdzuna(query) {
   const id = process.env.ADZUNA_APP_ID, key = process.env.ADZUNA_APP_KEY;
   if (!id || !key) return [];
   const url = `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${id}&app_key=${key}&results_per_page=50`
-    + `&what=${encodeURIComponent(query)}&salary_min=${cfg.salary.min}&sort_by=date&max_days_old=${cfg.maxAgeDays}`;
+    + `&what=${encodeURIComponent(query)}&sort_by=date&max_days_old=${cfg.maxAgeDays}`;
   const data = await getJson(url);
   return (data.results || []).map((r) => ({
     id: `adzuna-${r.id}`,
@@ -87,6 +87,7 @@ async function main() {
   const existing = (() => {
     try { return JSON.parse(readFileSync(dataPath, 'utf8')).jobs || []; } catch { return []; }
   })();
+  const known = new Map(existing.map((j) => [j.id, j]));
 
   const sponsorMap = await loadSponsorMap();
   const raw = [];
@@ -101,31 +102,35 @@ async function main() {
     console.warn('No API keys set. Add REED_API_KEY or ADZUNA_APP_ID and ADZUNA_APP_KEY as repository secrets.');
   }
 
-  // De-duplicate across sources by company + title.
+  // De-duplicate across sources and queries by id.
   const seen = new Set();
   const unique = raw.filter((r) => {
     if (!r.posted || !r.id || !r.title || !r.company) return false;
-    const k = `${r.company.toLowerCase()}|${r.title.toLowerCase()}|${r.location.toLowerCase()}`;
-    if (seen.has(r.id) || seen.has(k)) return false;
-    seen.add(r.id); seen.add(k);
+    if (seen.has(r.id)) return false;
+    seen.add(r.id);
     return true;
   });
 
-  // Cheap title filter first, then fetch the full Reed advert so sponsorship wording is read in full.
+  // The feed only drops what no user would want. Pay, region and seniority are decided on each phone.
+  // New Reed adverts get a second call for the full text so sponsorship wording is read in full.
   const stats = {};
   const kept = [];
+  let detailCalls = 0;
   for (const r of unique) {
-    const probe = buildJob(r, cfg, sponsorMap, today);
+    const probe = buildJob(r, cfg, sponsorMap);
     let reason = dropReason(probe, cfg, today);
-    if (!reason && r._detailUrl) {
+    if (!reason && r._detailUrl && !known.has(r.id) && detailCalls < cfg.maxDetailFetches) {
+      detailCalls++;
       try {
         const d = await getJson(r._detailUrl, r._detailAuth);
         r.description = d.jobDescription || r.description;
         await sleep(150);
       } catch { /* keep the snippet */ }
     }
-    const job = reason ? probe : buildJob(r, cfg, sponsorMap, today);
-    reason = reason || dropReason(job, cfg, today);
+    const job = reason ? probe : buildJob(r, cfg, sponsorMap);
+    // Adverts we already read in full keep their saved text and sponsorship reading.
+    const old = known.get(r.id);
+    if (old && old.summary && old.summary.length > job.summary.length) { job.summary = old.summary; job.sponsorship = old.sponsorship; }
     if (reason) { stats[reason] = (stats[reason] || 0) + 1; continue; }
     kept.push(job);
   }
@@ -138,9 +143,9 @@ async function main() {
     updated: new Date().toISOString(),
     sponsorRegisterChecked: Boolean(sponsorMap),
     jobs: merged,
-  }, null, 1) + '\n');
+  }) + '\n');
 
-  console.log(`Fetched ${raw.length}, unique ${unique.length}, kept ${kept.length}, new today ${newToday}, stored ${merged.length}`);
+  console.log(`Fetched ${raw.length}, unique ${unique.length}, kept ${kept.length}, detail calls ${detailCalls}, new today ${newToday}, stored ${merged.length}`);
   console.log('Dropped:', JSON.stringify(stats));
   if (errors.length) console.warn('Errors:\n' + errors.join('\n'));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `new_count=${newToday}\n`);

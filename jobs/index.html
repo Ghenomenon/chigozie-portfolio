@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Job Radar</title>
-  <meta name="description" content="Daily UK analyst roles with pay and sponsorship checks.">
+  <meta name="description" content="Daily UK analyst roles with pay and sponsor-licence checks.">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#1f3a5f">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -30,31 +30,37 @@
     <section id="view-all" class="view" hidden>
       <div class="filters">
         <input id="q" type="search" placeholder="Search title or company" aria-label="Search">
-        <label><input type="checkbox" id="f-sponsor"> Licensed sponsors only</label>
         <label><input type="checkbox" id="f-remote"> Remote or hybrid</label>
         <label><input type="checkbox" id="f-pay"> Pay stated</label>
         <label class="range">Min fit <output id="f-score-out">0</output>
           <input type="range" id="f-score" min="0" max="5" step="0.5" value="0">
         </label>
+        <p id="all-count" class="muted"></p>
       </div>
       <div id="list-all"></div>
     </section>
     <section id="view-tracker" class="view" hidden></section>
     <section id="view-settings" class="view" hidden>
       <div class="card">
-        <h2>Alerts</h2>
-        <p class="muted">The app shows a number on its icon when new roles arrive. For a morning notification, install the free ntfy app and subscribe to your private topic. See the setup notes.</p>
-        <button id="badge-btn" class="btn">Allow icon badge</button>
+        <h2>Your search</h2>
+        <p id="search-summary" class="muted"></p>
+        <button id="edit-search" class="btn">Edit your search</button>
+        <p id="threshold-note" class="muted small"></p>
       </div>
       <div class="card">
         <h2>Your CV</h2>
-        <p class="muted">This text goes into every Apply prompt. Edit it here and it stays on this phone only. Keep it factual, because the prompt tells Claude to use nothing else.</p>
+        <p class="muted">Paste your CV here. It goes into the Apply prompt and stays on this phone only. Nothing is sent to a server.</p>
         <textarea id="cv-text" rows="12" aria-label="CV text"></textarea>
         <div class="row">
           <button id="cv-save" class="btn">Save CV</button>
-          <button id="cv-reset" class="btn">Reset to default</button>
+          <button id="cv-clear" class="btn">Remove CV</button>
         </div>
         <p id="cv-note" class="muted" role="status"></p>
+      </div>
+      <div class="card">
+        <h2>Alerts</h2>
+        <p class="muted">The app shows a number on its icon when new roles arrive. For a morning notification, use the ntfy app. See the setup notes.</p>
+        <button id="badge-btn" class="btn">Allow icon badge</button>
       </div>
       <div class="card">
         <h2>Your tracker</h2>
@@ -66,10 +72,14 @@
       </div>
       <div class="card">
         <h2>How roles are scored</h2>
-        <p class="muted">Fit runs from 0 to 5. It rewards core analyst titles, pay in your range, remote or North East roles, and employers on the Home Office sponsor list. It cuts the score for pay below your floor. Roles that say no sponsorship never appear.</p>
-        <p class="muted">A role marked Not on register may still sponsor. The register lists legal names, so check the employer before you rule it out.</p>
+        <p class="muted">Fit runs from 0 to 5. It rewards roles that match your search, pay in your range, remote or local roles, and employers on the Home Office sponsor list. It cuts the score for pay below your floor.</p>
+      </div>
+      <div class="card notice">
+        <h2>Information only</h2>
+        <p class="muted">Job Radar is not immigration advice. A licensed sponsor can still refuse a role. An employer missing from the register may still sponsor, because the register lists legal names. Salary thresholds depend on the job. Check gov.uk and the employer before you rely on anything here.</p>
       </div>
     </section>
+    <p class="muted small foot">Information only, not immigration advice. Check gov.uk and the employer.</p>
   </main>
 
   <nav class="tabs" aria-label="Sections">
@@ -78,6 +88,41 @@
     <button data-tab="tracker">Tracker<span id="n-tracker" class="pill" hidden></span></button>
     <button data-tab="settings">Settings</button>
   </nav>
+
+  <dialog id="setup" aria-labelledby="setup-title">
+    <form id="setup-form" class="sheet">
+      <h2 id="setup-title">Set up your search</h2>
+      <p class="muted">This stays on your phone. Change it any time in Settings.</p>
+
+      <label class="field">Roles you want
+        <input id="s-roles" type="text" placeholder="data, business, operations" autocomplete="off">
+        <span class="hint">Words that must appear in the job title, separated by commas. Leave empty to see every analyst role.</span>
+      </label>
+      <label class="field">Words to hide
+        <input id="s-exclude" type="text" autocomplete="off">
+        <span class="hint">Titles with these words are hidden. Senior roles are hidden by default.</span>
+      </label>
+      <div class="two">
+        <label class="field">Lowest pay (£ a year)
+          <input id="s-floor" type="text" inputmode="numeric" placeholder="26000" autocomplete="off">
+        </label>
+        <label class="field">Pay you aim for
+          <span class="pair"><input id="s-lo" type="text" inputmode="numeric" placeholder="28000" aria-label="Aim from" autocomplete="off"><input id="s-hi" type="text" inputmode="numeric" placeholder="35000" aria-label="Aim to" autocomplete="off"></span>
+        </label>
+      </div>
+      <label class="field">Places
+        <input id="s-regions" type="text" placeholder="Leave empty for the whole UK" autocomplete="off">
+        <span class="hint">Towns or regions, separated by commas. For example Newcastle, Leeds, London.</span>
+      </label>
+      <label class="check"><input type="checkbox" id="s-remote" checked> Include remote roles</label>
+      <label class="check"><input type="checkbox" id="s-sponsor"> I need visa sponsorship</label>
+      <p class="hint">This hides adverts that say they will not sponsor, and adds a warning when stated pay looks too low for a visa.</p>
+      <label class="check"><input type="checkbox" id="s-licensed"> Only employers on the Home Office sponsor list</label>
+
+      <button type="submit" class="btn wide primary">Save and show roles</button>
+      <p class="muted small">Information only, not immigration advice.</p>
+    </form>
+  </dialog>
 
   <dialog id="apply" aria-labelledby="apply-title">
     <form method="dialog" class="sheet">
@@ -124,6 +169,6 @@
     </form>
   </dialog>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

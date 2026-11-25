@@ -214,3 +214,25 @@ details summary { min-height: 44px; display: flex; align-items: center; cursor: 
 .actions select { flex: 1 1 100%; }
 .actions .primary, .actions .adv { flex: 1; }
 .cv-row { margin-top: 8px; }
+
+/* Setup sheet and notices */
+.small { font-size: 13px; }
+.foot { text-align: center; margin: 18px 0 6px; }
+.notice { border-color: var(--warn); }
+.field { display: grid; gap: 4px; margin: 12px 0; font-weight: 600; }
+.field input[type=text] {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-weight: 400;
+  width: 100%;
+}
+.hint { font-weight: 400; font-size: 13px; color: var(--muted); }
+.two { display: grid; grid-template-columns: 1fr; gap: 0 12px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (min-width: 480px) { .two { grid-template-columns: 1fr 1fr; } }
+#setup-form .btn.wide { margin-top: 14px; }

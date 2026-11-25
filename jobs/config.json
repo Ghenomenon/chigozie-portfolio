@@ -1,31 +1,26 @@
 {
   "queries": [
-    "junior data analyst",
     "data analyst",
-    "excel analyst",
-    "reporting analyst",
+    "junior data analyst",
     "business analyst",
+    "reporting analyst",
     "operations analyst",
     "supply chain analyst",
-    "business intelligence analyst"
+    "business intelligence analyst",
+    "finance analyst",
+    "marketing analyst",
+    "graduate analyst",
+    "excel analyst",
+    "research analyst",
+    "risk analyst",
+    "credit analyst"
   ],
   "titleMustMatch": ["analyst", "analytics", "insight", "reporting", "bi developer"],
-  "titleExclude": [
-    "senior", "lead", "principal", "head of", "manager", "director", "staff ",
-    "apprentice", "intern", "placement", "trainer", "annotation", "fraud", "aml",
-    "kyc", "sar ", "security", "quality control", "tax", "payroll", "actuar",
-    "clinical", "laboratory", "chemist", "forensic", "delay analy", "it support",
-    "cyber", "soc analyst", "devops", "scientist", "engineer"
-  ],
+  "titleExclude": ["annotation", "ai trainer", " trainer", "intern "],
   "companyExclude": ["dataannotation", "data annotation"],
-  "salary": {
-    "min": 26000,
-    "target": [28000, 35000],
-    "dropIfMinAbove": 50000
-  },
   "maxAgeDays": 14,
   "keepDays": 45,
-  "homeRegionWords": ["newcastle", "gateshead", "south shields", "sunderland", "durham", "north east", "tyne"],
+  "maxDetailFetches": 300,
   "sponsorRefusal": [
     "no sponsorship",
     "no visa sponsorship",
