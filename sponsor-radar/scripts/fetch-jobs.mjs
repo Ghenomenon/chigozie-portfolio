@@ -17,9 +17,13 @@ const today = new Date().toISOString().slice(0, 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function getJson(url, headers = {}) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'sponsor-radar/1.0', ...headers } });
-  if (!res.ok) throw new Error(`${res.status} ${url.split('?')[0]}`);
-  return res.json();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, { headers: { 'User-Agent': 'sponsor-radar/1.0', ...headers } });
+    if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
+    if (!res.ok) throw new Error(`${res.status} ${url.split('?')[0]}`);
+    return res.json();
+  }
+  throw new Error(`gave up after retries ${url.split('?')[0]}`);
 }
 
 async function loadSponsorMap() {

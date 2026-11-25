@@ -45,6 +45,27 @@ export function formatLocation(loc = '') {
   return m ? `Near ${m[1].toUpperCase()}` : s;
 }
 
+// ---------- role families ----------
+
+// The feed holds several kinds of work. Most sponsorship rules apply to graduate-level jobs, so the app
+// treats everything except analyst roles as hard to sponsor. This is a guess from the title.
+const FAMILIES = [
+  ['support-care', /\b(support worker|care assistant|care worker|carer|healthcare assistant|health care assistant|care home)\b/i],
+  ['service-admin', /\b(customer service|customer support|administrator|receptionist|data entry)\b/i],
+  ['warehouse', /\b(warehouse|operative|driver|picker|packer|logistics coordinator)\b/i],
+  ['hospitality-retail', /\b(kitchen|chef|retail assistant|sales assistant|waiter|waitress|team member)\b/i],
+];
+
+export function jobFamily(title = '') {
+  if (/\b(analyst|analytics|insight|reporting|bi developer)\b/i.test(title)) return 'analyst';
+  for (const [name, re] of FAMILIES) if (re.test(title)) return name;
+  return 'other';
+}
+
+// Old stored records have no family, so work it out from the title.
+export const familyOf = (job) => job.family ?? jobFamily(job.title);
+export const isHardToSponsor = (job) => familyOf(job) !== 'analyst';
+
 // ---------- recruiters ----------
 
 // Recruitment agencies advertise roles for clients. The sponsor register lists the agency, not the client,
@@ -81,6 +102,7 @@ export function buildJob(raw, feedCfg, sponsorMap) {
     summary: cleanText(raw.description).slice(0, 1800),
   };
   job.agency = isAgency(job);
+  job.family = jobFamily(job.title);
   return job;
 }
 
@@ -200,6 +222,7 @@ export function scoreJob(job, p, thresholds) {
   if (job.sponsorship === 'refused') { s -= 3; reasons.push('Says no sponsorship'); }
   else if (job.sponsorship === 'offered') { s += 0.6; reasons.push('Advert mentions sponsorship'); }
   if (p.needsSponsorship) {
+    if (isHardToSponsor(job) && job.sponsorship !== 'offered') { s -= 0.8; reasons.push('This type of role is rarely sponsored'); }
     if (isRecruiter(job)) reasons.push('Recruiter: ask who the employer is');
     else if (job.sponsorLicence === 'licensed') { s += 0.6; reasons.push('Employer holds a sponsor licence'); }
     if (belowSponsorThreshold(job, thresholds)) { s -= 0.5; reasons.push('Pay may be below the visa threshold'); }
@@ -242,7 +265,7 @@ export function sponsorMapFromCsv(text) {
     if (!r[iName]) continue;
     const route = (r[iRoute] || '').toLowerCase();
     const type = (r[iType] || '').toLowerCase();
-    if (route.includes('skilled worker') && type.includes('a rating')) map.set(normCompany(r[iName]), true);
+    if ((route.includes('skilled worker') || route.includes('health and care')) && type.includes('a rating')) map.set(normCompany(r[iName]), true);
   }
   return map;
 }

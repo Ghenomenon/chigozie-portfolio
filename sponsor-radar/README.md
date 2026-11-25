@@ -6,6 +6,8 @@ A phone app that lists new UK analyst roles every morning, with a Home Office sp
 
 - A GitHub Actions workflow (`.github/workflows/daily-sponsor-radar.yml`) runs at 07:15 UTC each day.
 - It searches Reed and Adzuna, checks each employer against the Home Office register of licensed sponsors, flags adverts that mention or refuse sponsorship, and saves a shared feed to `sponsor-radar/data/jobs.json`.
+- The feed covers analyst roles plus four other families: support and care, customer service and admin, warehouse and logistics, and hospitality and retail. Edit `queries` and `titleMustMatch` in `sponsor-radar/config.json` to change this.
+- For people who need sponsorship, non-analyst roles carry a "Rarely sponsored" warning and a lower score. Most such roles no longer qualify for a Skilled Worker visa. The wording and date are in `sponsor-radar/data/thresholds.json`. Check gov.uk and keep it current.
 - The same advert posted for many places becomes one entry.
 - Recruitment agencies are tagged, because the sponsor register lists the recruiter and not the employer behind the advert. The tag is a best guess from the company name and the advert wording. People can hide recruiters in their search settings.
 - Each person sets their own search on first launch: roles, places, pay floor, remote and sponsorship need. Filtering and fit scoring run on their phone.
