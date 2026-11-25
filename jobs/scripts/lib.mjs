@@ -1,7 +1,4 @@
-// Shared logic. Runs in Node (daily fetch) and in the browser (per-user filtering and scoring).
-// Nothing here touches the network or the file system.
-
-// ---------- text helpers ----------
+// Shared logic for the daily job fetch. No network calls here, so it is easy to test.
 
 export function normCompany(name = '') {
   return String(name)
@@ -23,6 +20,17 @@ export function cleanText(html = '') {
     .trim();
 }
 
+export function titleOk(title, cfg) {
+  const t = ` ${String(title).toLowerCase()} `;
+  if (cfg.titleExclude.some((w) => t.includes(w))) return false;
+  return cfg.titleMustMatch.some((w) => t.includes(w));
+}
+
+export function companyOk(company, cfg) {
+  const c = String(company).toLowerCase();
+  return !cfg.companyExclude.some((w) => c.includes(w));
+}
+
 // Returns 'refused' | 'offered' | 'unknown'. Refusal always wins.
 export function sponsorshipFromText(text, cfg) {
   const t = String(text || '').toLowerCase().replace(/\s+/g, ' ');
@@ -38,67 +46,80 @@ export function detectWorkMode(...parts) {
   return 'onsite';
 }
 
-// Reed sometimes returns a bare postcode such as "NN72QA". Show the outward code instead.
-export function formatLocation(loc = '') {
-  const s = String(loc).trim();
-  const m = /^([A-Z]{1,2}\d[A-Z\d]?)\s?\d[A-Z]{2}$/i.exec(s);
-  return m ? `Near ${m[1].toUpperCase()}` : s;
+export function isHome(location, cfg) {
+  const l = String(location || '').toLowerCase();
+  return cfg.homeRegionWords.some((w) => l.includes(w));
 }
 
-// ---------- the shared feed (same for every user) ----------
+// Fit score from 0 to 5. Every part is visible in `reasons` so the app can show it.
+export function scoreJob(job, cfg) {
+  const reasons = [];
+  let s = 2.5;
+  const t = job.title.toLowerCase();
 
-export function buildJob(raw, feedCfg, sponsorMap) {
+  if (/\b(data|reporting|excel|bi|business intelligence)\b/.test(t)) { s += 1; reasons.push('Core analyst title'); }
+  else if (/\b(business|operations|supply chain|logistics|inventory|insight)\b/.test(t)) { s += 0.6; reasons.push('Adjacent analyst title'); }
+  if (/\bjunior|graduate|entry|associate\b/.test(t)) { s += 0.4; reasons.push('Entry-level title'); }
+
+  const [lo, hi] = cfg.salary.target;
+  const min = job.salaryMin, max = job.salaryMax;
+  if (min || max) {
+    const a = min || max, b = max || min;
+    if (b < cfg.salary.min) { s -= 2; reasons.push('Pay below your floor'); }
+    else if (a <= hi && b >= lo) { s += 0.7; reasons.push('Pay in your range'); }
+    else if (a > hi) { s -= 0.3; reasons.push('Pay above range, likely more senior'); }
+  }
+
+  if (job.workMode === 'remote') { s += 0.5; reasons.push('Remote'); }
+  else if (isHome(job.location, cfg)) { s += 0.5; reasons.push('North East'); }
+
+  if (job.sponsorship === 'refused') { s -= 3; reasons.push('Says no sponsorship'); }
+  else if (job.sponsorship === 'offered') { s += 0.6; reasons.push('Advert mentions sponsorship'); }
+  if (job.sponsorLicence === 'licensed') { s += 0.6; reasons.push('Employer holds a sponsor licence'); }
+
+  s = Math.max(0, Math.min(5, s));
+  return { score: Math.round(s * 10) / 10, reasons };
+}
+
+// Build the stored record. `raw` is a source-neutral object.
+export function buildJob(raw, cfg, sponsorMap, today) {
   const text = `${raw.title} ${raw.description || ''}`;
-  return {
+  const job = {
     id: raw.id,
     title: raw.title.trim(),
     company: raw.company.trim(),
-    location: formatLocation(raw.location || ''),
-    locations: [formatLocation(raw.location || '')].filter(Boolean),
+    location: raw.location || '',
     url: raw.url,
     source: raw.source,
-    posted: raw.posted,
+    posted: raw.posted || today,
     salaryMin: raw.salaryMin || null,
     salaryMax: raw.salaryMax || null,
+    salaryText: raw.salaryText || '',
     workMode: detectWorkMode(raw.title, raw.location, raw.description || ''),
-    sponsorship: sponsorshipFromText(text, feedCfg),
-    sponsorLicence: sponsorMap ? (sponsorMap.has(normCompany(raw.company)) ? 'licensed' : 'not-found') : 'unchecked',
+    sponsorship: sponsorshipFromText(text, cfg),
     summary: cleanText(raw.description).slice(0, 1800),
+    sponsorLicence: sponsorMap ? (sponsorMap.has(normCompany(raw.company)) ? 'licensed' : 'not-found') : 'unchecked',
   };
+  const { score, reasons } = scoreJob(job, cfg);
+  job.score = score;
+  job.reasons = reasons;
+  return job;
 }
 
-// Feed-level drops only: things no user would want. Everything personal is decided on the phone.
-export function dropReason(job, feedCfg, today) {
-  const t = ` ${job.title.toLowerCase()} `;
-  if (feedCfg.titleExclude.some((w) => t.includes(w))) return 'title-excluded';
-  if (!feedCfg.titleMustMatch.some((w) => t.includes(w))) return 'title';
-  const c = job.company.toLowerCase();
-  if (feedCfg.companyExclude.some((w) => c.includes(w))) return 'company';
+// Returns a reason string if the job must be dropped, otherwise null.
+export function dropReason(job, cfg, today) {
+  if (!titleOk(job.title, cfg)) return 'title';
+  if (!companyOk(job.company, cfg)) return 'company';
+  if (job.sponsorship === 'refused') return 'no-sponsorship';
+  const max = job.salaryMax || job.salaryMin;
+  if (max && max < cfg.salary.min) return 'below-floor';
+  if (job.salaryMin && job.salaryMin > cfg.salary.dropIfMinAbove) return 'above-range';
   const ageDays = (Date.parse(today) - Date.parse(job.posted)) / 86400000;
-  if (ageDays > feedCfg.maxAgeDays) return 'too-old';
+  if (ageDays > cfg.maxAgeDays) return 'too-old';
   return null;
 }
 
-// One advert posted for many locations becomes one entry with a list of places.
-export function collapseDuplicates(jobs) {
-  const groups = new Map();
-  for (const j of jobs) {
-    const key = `${normCompany(j.company)}|${j.title.toLowerCase().replace(/\s+/g, ' ').trim()}`;
-    const locations = (j.locations && j.locations.length ? j.locations : [j.location]).filter(Boolean).map(formatLocation);
-    const g = groups.get(key);
-    if (!g) { groups.set(key, { ...j, locations: [...new Set(locations)], copies: 1 }); continue; }
-    g.locations = [...new Set([...g.locations, ...locations])];
-    g.copies += 1;
-    if (j.posted > g.posted) { g.posted = j.posted; g.url = j.url; g.id = j.id; }
-    if (j.firstSeen && (!g.firstSeen || j.firstSeen > g.firstSeen)) g.firstSeen = j.firstSeen;
-  }
-  return [...groups.values()].map((g) => ({
-    ...g,
-    location: g.locations.length > 1 ? `${g.locations[0]} and ${g.locations.length - 1} more` : (g.locations[0] || g.location || 'UK'),
-  }));
-}
-
-// Merge today's jobs into the stored list. Keeps firstSeen so "new" survives reruns on the same day.
+// Merge today's jobs into the stored list. Keeps first_seen so "new" survives reruns on the same day.
 export function mergeJobs(existing, fresh, today, keepDays) {
   const byId = new Map(existing.map((j) => [j.id, j]));
   for (const j of fresh) {
@@ -106,85 +127,10 @@ export function mergeJobs(existing, fresh, today, keepDays) {
     byId.set(j.id, { ...j, firstSeen: old?.firstSeen || today });
   }
   const cutoff = Date.parse(today) - keepDays * 86400000;
-  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff);
-  return collapseDuplicates(kept).sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
+  return [...byId.values()]
+    .filter((j) => Date.parse(j.posted) >= cutoff)
+    .sort((a, b) => b.score - a.score || (b.posted > a.posted ? 1 : -1));
 }
-
-// ---------- the personal profile (lives on each user's phone) ----------
-
-export const DEFAULT_PROFILE = {
-  roles: [],                 // title keywords. Empty means any title in the feed.
-  exclude: ['senior', 'lead', 'principal', 'head of', 'manager', 'director'],
-  salaryFloor: 0,            // hide roles whose stated top pay is below this
-  salaryTarget: null,        // [low, high]
-  regions: [],               // place words. Empty means UK-wide.
-  includeRemote: true,
-  needsSponsorship: false,
-  licensedOnly: false,
-};
-
-const lc = (s) => String(s || '').toLowerCase();
-
-export function titleMatchesRoles(job, p) {
-  return !p.roles.length || p.roles.some((k) => lc(job.title).includes(lc(k)));
-}
-
-export function inRegion(job, p) {
-  if (!p.regions.length) return true;
-  if (p.includeRemote && job.workMode === 'remote') return true;
-  const places = (job.locations && job.locations.length ? job.locations : [job.location]).map(lc);
-  return p.regions.some((r) => places.some((l) => l.includes(lc(r))));
-}
-
-export function matchesProfile(job, p) {
-  if (!titleMatchesRoles(job, p)) return false;
-  if (p.exclude.some((w) => lc(job.title).includes(lc(w)))) return false;
-  if (p.needsSponsorship && job.sponsorship === 'refused') return false;
-  const top = job.salaryMax || job.salaryMin;
-  if (p.salaryFloor && top && top < p.salaryFloor) return false;
-  if (!inRegion(job, p)) return false;
-  if (p.licensedOnly && job.sponsorLicence !== 'licensed') return false;
-  return true;
-}
-
-// Indicative only. The real threshold depends on the job's occupation code.
-export function belowSponsorThreshold(job, thresholds) {
-  const top = job.salaryMax || job.salaryMin;
-  return Boolean(thresholds && top && top < thresholds.newEntrant);
-}
-
-// Fit score from 0 to 5. Every part is listed in `reasons` so the app can show it.
-export function scoreJob(job, p, thresholds) {
-  const reasons = [];
-  let s = 2.5;
-
-  if (p.roles.length && titleMatchesRoles(job, p)) { s += 1; reasons.push('Matches your roles'); }
-  if (/\b(junior|graduate|entry|associate|trainee)\b/.test(lc(job.title))) { s += 0.4; reasons.push('Entry-level title'); }
-
-  const min = job.salaryMin, max = job.salaryMax;
-  if ((min || max) && p.salaryTarget) {
-    const [lo, hi] = p.salaryTarget;
-    const a = min || max, b = max || min;
-    if (p.salaryFloor && b < p.salaryFloor) { s -= 2; reasons.push('Pay below your floor'); }
-    else if (a <= hi && b >= lo) { s += 0.7; reasons.push('Pay in your range'); }
-    else if (a > hi) { s -= 0.3; reasons.push('Pay above your range'); }
-  }
-
-  if (job.workMode === 'remote' && p.includeRemote) { s += 0.5; reasons.push('Remote'); }
-  else if (p.regions.length && inRegion(job, p)) { s += 0.5; reasons.push('In your region'); }
-
-  if (job.sponsorship === 'refused') { s -= 3; reasons.push('Says no sponsorship'); }
-  else if (job.sponsorship === 'offered') { s += 0.6; reasons.push('Advert mentions sponsorship'); }
-  if (p.needsSponsorship) {
-    if (job.sponsorLicence === 'licensed') { s += 0.6; reasons.push('Employer holds a sponsor licence'); }
-    if (belowSponsorThreshold(job, thresholds)) { s -= 0.5; reasons.push('Pay may be below the visa threshold'); }
-  }
-
-  s = Math.max(0, Math.min(5, s));
-  return { score: Math.round(s * 10) / 10, reasons };
-}
-
-// ---------- CSV and dates ----------
 
 // Minimal CSV parser that handles quoted fields.
 export function parseCsv(text) {
@@ -205,7 +151,7 @@ export function parseCsv(text) {
   return rows;
 }
 
-// Home Office register: keep employers licensed for the Skilled Worker route with an A rating.
+// Home Office register: keep employers licensed for the Skilled Worker route.
 export function sponsorMapFromCsv(text) {
   const rows = parseCsv(text);
   const head = rows[0].map((h) => h.toLowerCase());
@@ -223,6 +169,7 @@ export function sponsorMapFromCsv(text) {
 }
 
 export function parseReedDate(s) {
+  // Reed uses dd/mm/yyyy
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || '');
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }

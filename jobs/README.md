@@ -1,55 +1,46 @@
 # Job Radar
 
-A phone app that lists new UK analyst roles every morning, with a Home Office sponsor-licence check on every employer. Built for people who need visa sponsorship, and useful for anyone searching UK analyst roles.
+A phone app that lists new UK analyst roles every morning. It lives at `/jobs/` on the portfolio site.
 
 ## How it works
 
 - A GitHub Actions workflow (`.github/workflows/daily-jobs.yml`) runs at 06:30 UTC each day.
-- It searches Reed and Adzuna, checks each employer against the Home Office register of licensed sponsors, flags adverts that mention or refuse sponsorship, and saves a shared feed to `jobs/data/jobs.json`.
-- The same advert posted for many places becomes one entry.
-- Each person sets their own search on first launch: roles, places, pay floor, remote and sponsorship need. Filtering and fit scoring run on their phone.
-- Each person's search, CV and tracker stay on their own phone. Nothing about them is sent to a server.
+- It searches Reed and Adzuna for your role types, drops roles that say no sponsorship or pay below £26,000, checks each employer against the Home Office sponsor register, and scores fit from 0 to 5.
+- It saves the result to `jobs/data/jobs.json`. The app reads that file.
+- Your tracker (Saved, Applied, Interview and so on) stays on your phone. Export a copy from Settings.
 
-Feed settings (search terms, noise filters, sponsorship wording) are in `jobs/config.json`. Visa pay thresholds are in `jobs/data/thresholds.json`. Update them when gov.uk changes the figures.
+Search terms, pay floor and filter words are in `jobs/config.json`.
 
 ## Apply button
 
-Each role has an Apply button with five steps:
+Each role has an Apply button. It opens a sheet that guides you through five steps:
 
-1. Paste the advert text. Reed and Adzuna adverts are saved, so this can be skipped for them.
-2. Copy the prompt. It holds the advert, the person's CV and strict rules: no invented facts, and no answers about right to work or visa status.
-3. Paste it into Claude. It returns a tailored CV, a cover letter and draft answers to common form questions.
-4. Submit the application on the employer's form. The app never sends anything.
-5. Tick the box and mark the role as Applied. The date is saved in the tracker.
+1. Paste the advert text. Adverts from Reed and Adzuna are saved, so this step can be skipped for them.
+2. Copy the prompt. It holds the advert, your CV from `jobs/cv.md` (or your edited copy in Settings) and strict rules: no invented facts, and no answers about right to work or visa status.
+3. Paste it into Claude. You get a tailored CV, a cover letter and draft answers to common form questions.
+4. Submit the application yourself on the employer's form. The app never sends anything.
+5. Tick the box and mark the role as Applied. The date is saved in your tracker.
 
-The person pastes their CV once in Settings. It is stored on their phone only.
+`jobs/cv.md` is public because the site is public. Edit your private version in Settings. It stays on your phone.
 
-## Set up your own copy
+## Set up once
 
-1. Fork this repository, or copy the `jobs` folder and `.github/workflows/daily-jobs.yml` into a site you control.
-2. Publish the site (Netlify, GitHub Pages or any static host). The app lives at `/jobs/`.
-3. Get a free Reed key at reed.co.uk/developers. Optional second source: Adzuna at developer.adzuna.com.
-4. In the repo, open Settings, Secrets and variables, Actions. Add:
+1. Merge this branch into `main`. Scheduled workflows only run from the default branch.
+2. Get a free Reed key at reed.co.uk/developers. Optional second source: a free Adzuna key at developer.adzuna.com.
+3. In the repo, open Settings, Secrets and variables, Actions. Add:
    - `REED_API_KEY`
    - `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` (optional)
-   - `NTFY_TOPIC` (optional, for a morning notification). Pick a long random name.
-5. In the Actions tab, run Daily job radar once. Check that `jobs/data/jobs.json` fills.
-6. On an iPhone, open the page in Safari, tap Share, then Add to Home Screen.
-
-## Before you charge for it
-
-- **Job data licence.** Free Reed and Adzuna keys are usually for personal use. Read both sets of terms. Get commercial permission before you take money.
-- **Immigration advice.** In the UK, giving immigration advice is regulated. The app says it is information only. Keep that wording on every sponsorship screen.
-- **Visa thresholds.** The figures in `thresholds.json` are indicative and dated. The real threshold depends on the job. Keep them current.
-- **Sponsor register.** It is published under the Open Government Licence. Credit the source.
-- **Privacy.** The app stores nothing about users on a server. If you add accounts, alerts or payments, you will hold personal data and need a privacy notice.
+   - `NTFY_TOPIC` (optional, for a morning notification). Pick a long random name, for example `jobradar-k29x7qpm4t`.
+4. Open the Actions tab, choose Daily job radar, then Run workflow. Check that `jobs/data/jobs.json` updates.
+5. On your iPhone, open `https://chigozie-nkwopara.netlify.app/jobs/` in Safari. Tap Share, then Add to Home Screen.
+6. For the morning notification, install the free ntfy app and subscribe to your topic.
 
 ## Limits
 
-- Without a Reed or Adzuna key the workflow finds nothing.
-- iPhone web apps cannot receive scheduled push alerts without a push server. The icon badge shows new roles when the app opens. ntfy gives a morning alert.
+- Without a Reed or Adzuna key the workflow finds nothing. The list currently holds 9 roles from a manual Indeed search.
+- iPhone web apps cannot receive scheduled push alerts without a push server. The icon badge shows new roles when you open the app. ntfy gives you the morning alert.
 - "Not on register" means the legal name did not match the Home Office list. It does not prove the employer refuses sponsorship.
-- The data file is public when the site is public. It holds job adverts only.
+- The data file is public because the site is public. It holds job adverts only, not your tracker.
 
 ## Test
 
