@@ -81,6 +81,40 @@ export function isAgency(job) {
   return AGENCY_TEXT.test(String(job.summary || job.description || '').slice(0, 1800));
 }
 
+// ---------- pay ----------
+
+// Reed gives hourly, daily and weekly rates in the same fields as yearly pay. Work out which one it is,
+// from a money figure followed by a unit in the advert when there is one, and from the size of the number
+// when there is not. Yearly figures are then stored in salaryMin and salaryMax so filtering and scoring
+// compare like with like. The original rate is kept in rateMin and rateMax for display.
+const ANNUALISE = { hour: 1950, day: 260, week: 52 };   // 37.5 hours a week, 52 weeks
+
+function unitFromText(text) {
+  const t = String(text || '').slice(0, 1800);
+  const money = String.raw`£\s?[\d][\d,.]*(?:\s?(?:k|-|to|–)\s?£?\s?[\d][\d,.]*)?`;
+  if (new RegExp(`${money}\\s*(?:per|an|a|/)\\s*(?:hour|hr)\\b`, 'i').test(t)) return 'hour';
+  if (new RegExp(`${money}\\s*(?:per|a|/)\\s*day\\b`, 'i').test(t)) return 'day';
+  if (new RegExp(`${money}\\s*(?:per|a|/)\\s*week\\b`, 'i').test(t)) return 'week';
+  return null;
+}
+
+export function normalisePay(job) {
+  if (job.salaryUnit !== undefined) return job;           // already done
+  const top = job.salaryMax || job.salaryMin;
+  if (!top) return { ...job, salaryUnit: null };
+  const unit = top >= 1000 ? 'year' : (unitFromText(job.summary) || (top < 100 ? 'hour' : 'day'));
+  if (unit === 'year') return { ...job, salaryUnit: 'year' };
+  const f = ANNUALISE[unit];
+  return {
+    ...job,
+    salaryUnit: unit,
+    rateMin: job.salaryMin || null,
+    rateMax: job.salaryMax || null,
+    salaryMin: job.salaryMin ? Math.round(job.salaryMin * f) : null,
+    salaryMax: job.salaryMax ? Math.round(job.salaryMax * f) : null,
+  };
+}
+
 // ---------- the shared feed (same for every user) ----------
 
 export function buildJob(raw, feedCfg, sponsorMap) {
@@ -103,7 +137,7 @@ export function buildJob(raw, feedCfg, sponsorMap) {
   };
   job.agency = isAgency(job);
   job.family = jobFamily(job.title);
-  return job;
+  return normalisePay(job);
 }
 
 // Feed-level drops only: things no user would want. Everything personal is decided on the phone.
@@ -145,7 +179,7 @@ export function mergeJobs(existing, fresh, today, keepDays) {
     byId.set(j.id, { ...j, firstSeen: old?.firstSeen || today });
   }
   const cutoff = Date.parse(today) - keepDays * 86400000;
-  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff);
+  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff).map(normalisePay);
   return collapseDuplicates(kept).sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
 }
 

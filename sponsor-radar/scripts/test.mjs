@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
-  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor,
+  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor, normalisePay,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -223,4 +223,50 @@ test('searching support worker finds support roles and nothing else', () => {
 test('health and care register entries count as licensed', () => {
   const csv = ['Organisation Name,Town/City,County,Type & Rating,Route', '"Kind Care Ltd",Leeds,,Worker (A rating),Health and Care Worker'].join('\n');
   assert.ok(sponsorMapFromCsv(csv).has(normCompany('Kind Care')));
+});
+
+test('hourly, daily and weekly rates become yearly figures, and yearly pay is left alone', () => {
+  const hourly = normalisePay({ salaryMin: 13.5, salaryMax: 13.5, summary: '' });
+  assert.equal(hourly.salaryUnit, 'hour');
+  assert.equal(hourly.salaryMin, 26325);
+  assert.equal(hourly.rateMin, 13.5);
+  const range = normalisePay({ salaryMin: 14, salaryMax: 17, summary: '' });
+  assert.deepEqual([range.salaryMin, range.salaryMax, range.rateMin, range.rateMax], [27300, 33150, 14, 17]);
+  const day = normalisePay({ salaryMin: 350, salaryMax: 400, summary: '' });
+  assert.equal(day.salaryUnit, 'day');
+  assert.equal(day.salaryMax, 104000);
+  const year = normalisePay({ salaryMin: 28000, salaryMax: 32000, summary: '' });
+  assert.equal(year.salaryUnit, 'year');
+  assert.equal(year.salaryMin, 28000);
+  assert.equal(normalisePay({ salaryMin: null, salaryMax: null }).salaryUnit, null);
+});
+
+test('the advert wording decides the unit when the number could be a day or a week', () => {
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Pay: £450 per week plus bonus' }).salaryUnit, 'week');
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Rate of £450 a day inside IR35' }).salaryUnit, 'day');
+  assert.equal(normalisePay({ salaryMin: 45, salaryMax: 45, summary: 'We pay £45 per hour' }).salaryUnit, 'hour');
+  const weekly = normalisePay({ salaryMin: 450, salaryMax: 450, summary: '£450 per week' });
+  assert.equal(weekly.salaryMin, 23400);
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Hours: 37.5 per week' }).salaryUnit, 'day', 'hours per week is not a pay rate');
+});
+
+test('normalising twice changes nothing', () => {
+  const once = normalisePay({ salaryMin: 14, salaryMax: 17, summary: '' });
+  assert.deepEqual(normalisePay(once), once);
+});
+
+test('the feed stores yearly figures for hourly roles, so a pay floor does not hide them', () => {
+  const job = mk({ title: 'Care Assistant', salaryMin: 14.75, salaryMax: 14.75 });
+  assert.equal(job.salaryUnit, 'hour');
+  assert.equal(job.salaryMax, 28763);
+  assert.ok(matchesProfile(job, profile({ salaryFloor: 26000 })), 'about £28,800 a year clears a £26,000 floor');
+  assert.ok(!matchesProfile(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), profile({ salaryFloor: 26000 })), '£11 an hour is about £21,450');
+});
+
+test('stored records from before the fix are repaired when merged', () => {
+  const old = { ...mk({ id: 'old1', title: 'Care Assistant' }), salaryMin: 13.21, salaryMax: 13.21, salaryUnit: undefined };
+  delete old.salaryUnit;
+  const [fixed] = mergeJobs([old], [], today, 45);
+  assert.equal(fixed.salaryUnit, 'hour');
+  assert.equal(fixed.salaryMax, 25760);
 });

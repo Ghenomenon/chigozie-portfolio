@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -42,7 +42,17 @@ function el(tag, props = {}, ...kids) {
 const safeUrl = (u) => (/^https:\/\//i.test(u) ? u : '#');
 const gbp = (n) => '£' + Math.round(n).toLocaleString('en-GB');
 
+const RATE_WORDS = { hour: 'an hour', day: 'a day', week: 'a week' };
+const money = (n) => '£' + (Math.round(n * 100) % 100 === 0 ? Math.round(n).toLocaleString('en-GB') : n.toFixed(2));
+
 function salaryText(j) {
+  const unit = j.salaryUnit;
+  if (unit && unit !== 'year') {
+    const lo = j.rateMin, hi = j.rateMax;
+    const rate = lo && hi && lo !== hi ? `${money(lo)} to ${money(hi)}` : money(lo || hi);
+    const top = j.salaryMax || j.salaryMin;
+    return `${rate} ${RATE_WORDS[unit]} (about ${gbp(top)} a year)`;
+  }
   if (j.salaryMin && j.salaryMax && j.salaryMin !== j.salaryMax) return `${gbp(j.salaryMin)} to ${gbp(j.salaryMax)}`;
   if (j.salaryMin || j.salaryMax) return gbp(j.salaryMin || j.salaryMax);
   return 'Pay not stated';
@@ -218,7 +228,7 @@ async function load() {
     ]);
     if (!jobsRes.ok) throw new Error(jobsRes.status);
     const data = await jobsRes.json();
-    allJobs = collapseDuplicates(data.jobs || []);
+    allJobs = collapseDuplicates(data.jobs || []).map(normalisePay);
     if (thrRes && thrRes.ok) thresholds = await thrRes.json();
     const when = new Date(data.updated).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
     $('updated').textContent = `Updated ${when} · ${allJobs.length} roles in feed`
