@@ -81,6 +81,79 @@ export function isAgency(job) {
   return AGENCY_TEXT.test(String(job.summary || job.description || '').slice(0, 1800));
 }
 
+// ---------- pay ----------
+
+// Reed gives hourly, daily and weekly rates in the same fields as yearly pay. Work out which one it is,
+// from a money figure followed by a unit in the advert when there is one, and from the size of the number
+// when there is not. Yearly figures are then stored in salaryMin and salaryMax so filtering and scoring
+// compare like with like. The original rate is kept in rateMin and rateMax for display.
+const ANNUALISE = { hour: 1950, day: 260, week: 52 };   // 37.5 hours a week, 52 weeks
+
+function unitFromText(text) {
+  const t = String(text || '').slice(0, 1800);
+  const money = String.raw`£\s?[\d][\d,.]*(?:\s?(?:k|-|to|–)\s?£?\s?[\d][\d,.]*)?`;
+  if (new RegExp(`${money}\\s*(?:per|an|a|/)\\s*(?:hour|hr)\\b`, 'i').test(t)) return 'hour';
+  if (new RegExp(`${money}\\s*(?:per|a|/)\\s*day\\b`, 'i').test(t)) return 'day';
+  if (new RegExp(`${money}\\s*(?:per|a|/)\\s*week\\b`, 'i').test(t)) return 'week';
+  return null;
+}
+
+export function normalisePay(job) {
+  if (job.salaryUnit !== undefined) return job;           // already done
+  const top = job.salaryMax || job.salaryMin;
+  if (!top) return { ...job, salaryUnit: null };
+  const unit = top >= 1000 ? 'year' : (unitFromText(job.summary) || (top < 100 ? 'hour' : 'day'));
+  if (unit === 'year') return { ...job, salaryUnit: 'year' };
+  const f = ANNUALISE[unit];
+  return {
+    ...job,
+    salaryUnit: unit,
+    rateMin: job.salaryMin || null,
+    rateMax: job.salaryMax || null,
+    salaryMin: job.salaryMin ? Math.round(job.salaryMin * f) : null,
+    salaryMax: job.salaryMax ? Math.round(job.salaryMax * f) : null,
+  };
+}
+
+// ---------- pay as advertised ----------
+
+// An advert quotes pay in one unit. Roles quoted by the hour, day or week are compared by the hour, and
+// roles quoted by the year are compared by the year. The other form is worked out for display only.
+export function payBasis(job) {
+  const unit = normalisePay(job).salaryUnit;
+  return unit === 'year' ? 'year' : (unit ? 'hour' : null);
+}
+
+// The top of the advertised range, as pounds an hour. Days are 7.5 hours, weeks 37.5, years 1,950.
+export function hourlyEquivalent(job) {
+  const j = normalisePay(job);
+  if (!j.salaryUnit) return null;
+  const top = j.salaryUnit === 'year' ? (j.salaryMax || j.salaryMin) : (j.rateMax || j.rateMin);
+  if (!top) return null;
+  return { hour: top, day: top / 7.5, week: top / 37.5, year: top / 1950 }[j.salaryUnit];
+}
+
+export function belowPayFloor(job, p) {
+  const j = normalisePay(job);
+  const basis = payBasis(j);
+  if (basis === 'year') {
+    const top = j.salaryMax || j.salaryMin;
+    return Boolean(p.salaryFloor && top && top < p.salaryFloor);
+  }
+  if (basis === 'hour') {
+    const h = hourlyEquivalent(j);
+    return Boolean(p.hourlyFloor && h && h < p.hourlyFloor);
+  }
+  return false;
+}
+
+// The legal minimum for over-21s. Part-time and unstated hours can make this wrong, so it is a flag only.
+export function belowMinimumWage(job, thresholds) {
+  const h = hourlyEquivalent(job);
+  const nmw = thresholds?.minimumWage?.over21;
+  return Boolean(h && nmw && h < nmw);
+}
+
 // ---------- the shared feed (same for every user) ----------
 
 export function buildJob(raw, feedCfg, sponsorMap) {
@@ -103,7 +176,7 @@ export function buildJob(raw, feedCfg, sponsorMap) {
   };
   job.agency = isAgency(job);
   job.family = jobFamily(job.title);
-  return job;
+  return normalisePay(job);
 }
 
 // Feed-level drops only: things no user would want. Everything personal is decided on the phone.
@@ -145,7 +218,7 @@ export function mergeJobs(existing, fresh, today, keepDays) {
     byId.set(j.id, { ...j, firstSeen: old?.firstSeen || today });
   }
   const cutoff = Date.parse(today) - keepDays * 86400000;
-  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff);
+  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff).map(normalisePay);
   return collapseDuplicates(kept).sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
 }
 
@@ -154,7 +227,8 @@ export function mergeJobs(existing, fresh, today, keepDays) {
 export const DEFAULT_PROFILE = {
   roles: [],                 // title keywords. Empty means any title in the feed.
   exclude: ['senior', 'lead', 'principal', 'head of', 'manager', 'director'],
-  salaryFloor: 0,            // hide roles whose stated top pay is below this
+  salaryFloor: 0,            // hide yearly-pay roles whose top pay is below this
+  hourlyFloor: 0,            // hide hourly, daily and weekly roles whose hourly equivalent is below this
   salaryTarget: null,        // [low, high]
   regions: [],               // place words. Empty means UK-wide.
   includeRemote: true,
@@ -180,8 +254,7 @@ export function matchesProfile(job, p) {
   if (!titleMatchesRoles(job, p)) return false;
   if (p.exclude.some((w) => lc(job.title).includes(lc(w)))) return false;
   if (p.needsSponsorship && job.sponsorship === 'refused') return false;
-  const top = job.salaryMax || job.salaryMin;
-  if (p.salaryFloor && top && top < p.salaryFloor) return false;
+  if (belowPayFloor(job, p)) return false;
   if (!inRegion(job, p)) return false;
   if (p.licensedOnly && job.sponsorLicence !== 'licensed') return false;
   if (p.hideAgencies && isRecruiter(job)) return false;
@@ -208,13 +281,14 @@ export function scoreJob(job, p, thresholds) {
   if (/\b(junior|graduate|entry|associate|trainee)\b/.test(lc(job.title))) { s += 0.4; reasons.push('Entry-level title'); }
 
   const min = job.salaryMin, max = job.salaryMax;
-  if ((min || max) && p.salaryTarget) {
+  if (belowPayFloor(job, p)) { s -= 2; reasons.push('Pay below your floor'); }
+  else if ((min || max) && p.salaryTarget) {
     const [lo, hi] = p.salaryTarget;
     const a = min || max, b = max || min;
-    if (p.salaryFloor && b < p.salaryFloor) { s -= 2; reasons.push('Pay below your floor'); }
-    else if (a <= hi && b >= lo) { s += 0.7; reasons.push('Pay in your range'); }
+    if (a <= hi && b >= lo) { s += 0.7; reasons.push('Pay in your range'); }
     else if (a > hi) { s -= 0.3; reasons.push('Pay above your range'); }
   }
+  if (belowMinimumWage(job, thresholds)) { s -= 0.5; reasons.push('Pay looks below the minimum wage'); }
 
   if (job.workMode === 'remote' && p.includeRemote) { s += 0.5; reasons.push('Remote'); }
   else if (p.regions.length && inRegion(job, p)) { s += 0.5; reasons.push('In your region'); }

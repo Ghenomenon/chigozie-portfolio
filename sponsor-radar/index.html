@@ -103,13 +103,19 @@
         <span class="hint">Titles with these words are hidden. Senior roles are hidden by default.</span>
       </label>
       <div class="two">
-        <label class="field">Lowest pay (£ a year)
+        <label class="field">Lowest yearly pay (£)
           <input id="s-floor" type="text" inputmode="numeric" placeholder="26000" autocomplete="off">
+          <span class="hint">Applies to adverts that quote a yearly salary.</span>
         </label>
-        <label class="field">Pay you aim for
-          <span class="pair"><input id="s-lo" type="text" inputmode="numeric" placeholder="28000" aria-label="Aim from" autocomplete="off"><input id="s-hi" type="text" inputmode="numeric" placeholder="35000" aria-label="Aim to" autocomplete="off"></span>
+        <label class="field">Lowest hourly pay (£)
+          <input id="s-hfloor" type="text" inputmode="decimal" autocomplete="off">
+          <span class="hint">Applies to adverts that quote an hourly, daily or weekly rate. Starts at the National Living Wage.</span>
         </label>
       </div>
+      <p id="wage-hint" class="hint"></p>
+      <label class="field">Yearly pay you aim for
+        <span class="pair"><input id="s-lo" type="text" inputmode="numeric" placeholder="28000" aria-label="Aim from" autocomplete="off"><input id="s-hi" type="text" inputmode="numeric" placeholder="35000" aria-label="Aim to" autocomplete="off"></span>
+      </label>
       <label class="field">Places
         <input id="s-regions" type="text" placeholder="Leave empty for the whole UK" autocomplete="off">
         <span class="hint">Towns or regions, separated by commas. For example Newcastle, Leeds, London.</span>

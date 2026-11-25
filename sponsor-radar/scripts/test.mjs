@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
-  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor,
+  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor, normalisePay,
+  payBasis, hourlyEquivalent, belowPayFloor, belowMinimumWage,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -223,4 +224,92 @@ test('searching support worker finds support roles and nothing else', () => {
 test('health and care register entries count as licensed', () => {
   const csv = ['Organisation Name,Town/City,County,Type & Rating,Route', '"Kind Care Ltd",Leeds,,Worker (A rating),Health and Care Worker'].join('\n');
   assert.ok(sponsorMapFromCsv(csv).has(normCompany('Kind Care')));
+});
+
+test('hourly, daily and weekly rates become yearly figures, and yearly pay is left alone', () => {
+  const hourly = normalisePay({ salaryMin: 13.5, salaryMax: 13.5, summary: '' });
+  assert.equal(hourly.salaryUnit, 'hour');
+  assert.equal(hourly.salaryMin, 26325);
+  assert.equal(hourly.rateMin, 13.5);
+  const range = normalisePay({ salaryMin: 14, salaryMax: 17, summary: '' });
+  assert.deepEqual([range.salaryMin, range.salaryMax, range.rateMin, range.rateMax], [27300, 33150, 14, 17]);
+  const day = normalisePay({ salaryMin: 350, salaryMax: 400, summary: '' });
+  assert.equal(day.salaryUnit, 'day');
+  assert.equal(day.salaryMax, 104000);
+  const year = normalisePay({ salaryMin: 28000, salaryMax: 32000, summary: '' });
+  assert.equal(year.salaryUnit, 'year');
+  assert.equal(year.salaryMin, 28000);
+  assert.equal(normalisePay({ salaryMin: null, salaryMax: null }).salaryUnit, null);
+});
+
+test('the advert wording decides the unit when the number could be a day or a week', () => {
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Pay: £450 per week plus bonus' }).salaryUnit, 'week');
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Rate of £450 a day inside IR35' }).salaryUnit, 'day');
+  assert.equal(normalisePay({ salaryMin: 45, salaryMax: 45, summary: 'We pay £45 per hour' }).salaryUnit, 'hour');
+  const weekly = normalisePay({ salaryMin: 450, salaryMax: 450, summary: '£450 per week' });
+  assert.equal(weekly.salaryMin, 23400);
+  assert.equal(normalisePay({ salaryMin: 450, salaryMax: 450, summary: 'Hours: 37.5 per week' }).salaryUnit, 'day', 'hours per week is not a pay rate');
+});
+
+test('normalising twice changes nothing', () => {
+  const once = normalisePay({ salaryMin: 14, salaryMax: 17, summary: '' });
+  assert.deepEqual(normalisePay(once), once);
+});
+
+test('the feed keeps the advertised rate and a yearly figure for hourly roles', () => {
+  const job = mk({ title: 'Care Assistant', salaryMin: 14.75, salaryMax: 14.75 });
+  assert.equal(job.salaryUnit, 'hour');
+  assert.equal(job.rateMax, 14.75);
+  assert.equal(job.salaryMax, 28763);
+});
+
+test('stored records from before the fix are repaired when merged', () => {
+  const old = { ...mk({ id: 'old1', title: 'Care Assistant' }), salaryMin: 13.21, salaryMax: 13.21, salaryUnit: undefined };
+  delete old.salaryUnit;
+  const [fixed] = mergeJobs([old], [], today, 45);
+  assert.equal(fixed.salaryUnit, 'hour');
+  assert.equal(fixed.salaryMax, 25760);
+});
+
+test('each advert is judged in the unit it was quoted in', () => {
+  const yearly = mk({ salaryMin: 28000, salaryMax: 30000 });
+  const hourly = mk({ title: 'Care Assistant', salaryMin: 12, salaryMax: 12 });
+  const daily = mk({ title: 'Business Analyst', salaryMin: 350, salaryMax: 400 });
+  const none = mk({ title: 'Receptionist' });
+  assert.deepEqual([payBasis(yearly), payBasis(hourly), payBasis(daily), payBasis(none)], ['year', 'hour', 'hour', null]);
+  assert.equal(Math.round(hourlyEquivalent(yearly) * 100) / 100, 15.38);
+  assert.equal(hourlyEquivalent(hourly), 12);
+  assert.equal(Math.round(hourlyEquivalent(daily) * 100) / 100, 53.33);
+  assert.equal(hourlyEquivalent(none), null);
+});
+
+test('the yearly floor applies to yearly adverts and the hourly floor to hourly adverts', () => {
+  const p = profile({ salaryFloor: 26000, hourlyFloor: 12.71 });
+  assert.ok(belowPayFloor(mk({ salaryMin: 22000, salaryMax: 24000 }), p), 'yearly below the yearly floor');
+  assert.ok(!belowPayFloor(mk({ salaryMin: 27000, salaryMax: 30000 }), p));
+  assert.ok(belowPayFloor(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), p), 'hourly below the hourly floor');
+  assert.ok(!belowPayFloor(mk({ title: 'Care Assistant', salaryMin: 13.5, salaryMax: 13.5 }), p));
+  assert.ok(!belowPayFloor(mk({ title: 'Care Assistant', salaryMin: 13.5, salaryMax: 13.5 }), profile({ salaryFloor: 40000 })), 'the yearly floor does not judge an hourly advert');
+  assert.ok(!belowPayFloor(mk({ salaryMin: 22000, salaryMax: 24000 }), profile({ hourlyFloor: 30 })), 'the hourly floor does not judge a yearly advert');
+  assert.ok(!belowPayFloor(mk({ title: 'Receptionist' }), p), 'no pay stated means no pay filter');
+});
+
+test('filtering and scoring use the advertised unit', () => {
+  const p = profile({ salaryFloor: 26000, hourlyFloor: 12.71 });
+  assert.ok(matchesProfile(mk({ title: 'Care Assistant', salaryMin: 13.5, salaryMax: 13.5 }), p));
+  assert.ok(!matchesProfile(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), p));
+  assert.ok(!matchesProfile(mk({ salaryMin: 22000, salaryMax: 24000 }), p));
+  const low = scoreJob(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), p, thr);
+  assert.ok(low.reasons.includes('Pay below your floor'));
+});
+
+test('minimum wage flag compares the hourly equivalent with the over-21 rate', () => {
+  assert.ok(thr.minimumWage.over21 > 10 && thr.minimumWage.asOf && thr.minimumWage.source);
+  assert.ok(belowMinimumWage(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), thr));
+  assert.ok(!belowMinimumWage(mk({ title: 'Care Assistant', salaryMin: 13, salaryMax: 13 }), thr));
+  assert.ok(belowMinimumWage(mk({ salaryMin: 20000, salaryMax: 20000 }), thr), 'about £10.26 an hour as a full-time salary');
+  assert.ok(!belowMinimumWage(mk({ salaryMin: 26000, salaryMax: 26000 }), thr));
+  assert.ok(!belowMinimumWage(mk({ title: 'Receptionist' }), thr));
+  const r = scoreJob(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), profile(), thr);
+  assert.ok(r.reasons.includes('Pay looks below the minimum wage'));
 });
