@@ -254,3 +254,8 @@ details summary { list-style: none; }
 details summary::-webkit-details-marker { display: none; }
 details summary::before { content: "\25B8"; display: inline-block; width: 1.2em; color: var(--muted); }
 details[open] summary::before { content: "\25BE"; }
+
+/* Why are roles hidden */
+.why-panel { margin: 4px 0 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; }
+.why-panel ul { margin: 0 0 8px; padding-left: 20px; }
+.why-panel li { margin: 4px 0; font-size: 14px; }

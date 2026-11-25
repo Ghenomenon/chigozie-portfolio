@@ -36,6 +36,11 @@
           <input type="range" id="f-score" min="0" max="5" step="0.5" value="0">
         </label>
         <p id="all-count" class="muted"></p>
+        <details id="why" class="why-panel">
+          <summary id="why-summary">Why are roles hidden?</summary>
+          <ul id="why-list"></ul>
+          <p class="hint">The feed holds recent adverts from Reed. It is a sample of the market, not every advert. Widen your roles or places to see more.</p>
+        </details>
       </div>
       <div id="list-all"></div>
     </section>
@@ -98,6 +103,8 @@
         <input id="s-roles" type="text" placeholder="data, support worker, warehouse" autocomplete="off">
         <span class="hint">Words that must appear in the job title, separated by commas. The feed covers analyst, support and care, customer service and admin, warehouse and logistics, and hospitality and retail roles. Leave empty to see everything.</span>
       </label>
+      <label class="check"><input type="checkbox" id="s-similar" checked> Include similar titles</label>
+      <p class="hint">A search for support worker also finds care assistant, care worker and healthcare assistant. Turn this off to match your words only.</p>
       <label class="field">Words to hide
         <input id="s-exclude" type="text" autocomplete="off">
         <span class="hint">Titles with these words are hidden. Senior roles are hidden by default.</span>

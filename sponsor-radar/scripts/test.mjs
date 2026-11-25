@@ -6,6 +6,7 @@ import {
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
   DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor, normalisePay,
   payBasis, hourlyEquivalent, belowPayFloor, belowMinimumWage,
+  expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -135,7 +136,7 @@ test('merge keeps first seen, drops stale jobs and collapses repeats', () => {
 
 test('advert text is cleaned and capped', () => {
   assert.equal(cleanText('<p>Build <b>reports</b>&nbsp;in Excel</p><ul><li>SQL</li></ul>'), 'Build reports in Excel\nSQL');
-  assert.equal(mk({ description: 'a'.repeat(5000) }).summary.length, 1800);
+  assert.equal(mk({ description: 'a'.repeat(5000) }).summary.length, 1000);
 });
 
 test('old records with raw postcodes are cleaned when collapsed', () => {
@@ -312,4 +313,78 @@ test('minimum wage flag compares the hourly equivalent with the over-21 rate', (
   assert.ok(!belowMinimumWage(mk({ title: 'Receptionist' }), thr));
   const r = scoreJob(mk({ title: 'Care Assistant', salaryMin: 11, salaryMax: 11 }), profile(), thr);
   assert.ok(r.reasons.includes('Pay looks below the minimum wage'));
+});
+
+test('a search for support worker also finds similar titles, and can be switched to exact', () => {
+  const p = profile({ roles: ['support worker'] });
+  for (const t of ['Support Worker', 'Care Assistant - Care Home', 'Live In Care Worker', 'Healthcare Assistant', 'Domiciliary Carer']) {
+    assert.ok(titleMatchesRoles(mk({ title: t }), p), t);
+  }
+  assert.ok(!titleMatchesRoles(mk({ title: 'Data Analyst' }), p));
+  assert.ok(!titleMatchesRoles(mk({ title: 'Warehouse Operative' }), p));
+  const exact = profile({ roles: ['support worker'], similarTitles: false });
+  assert.ok(titleMatchesRoles(mk({ title: 'Support Worker' }), exact));
+  assert.ok(!titleMatchesRoles(mk({ title: 'Care Assistant' }), exact));
+  assert.deepEqual(expandRoles(['sales'], true), ['sales'], 'a word in no group is left alone');
+});
+
+test('the senior filter hides senior analysts but not senior carers', () => {
+  const p = profile({ roles: [] });
+  assert.equal(filterReason(mk({ title: 'Senior Data Analyst' }), p), 'words');
+  assert.equal(filterReason(mk({ title: 'Senior Care Worker' }), p), null);
+  assert.equal(filterReason(mk({ title: 'Senior Healthcare Assistant' }), p), null);
+  assert.equal(filterReason(mk({ title: 'Care Home Manager' }), p), 'words', 'manager still hides');
+  assert.equal(filterReason(mk({ title: 'Lead Support Worker' }), p), 'words', 'lead still hides');
+});
+
+test('every hidden role is explained by exactly one setting', () => {
+  const jobs = [
+    mk({ id: 'a', title: 'Support Worker' }),
+    mk({ id: 'b', title: 'Data Analyst' }),
+    mk({ id: 'c', title: 'Support Worker Manager' }),
+    mk({ id: 'd', title: 'Care Assistant', description: 'No sponsorship available.' }),
+    mk({ id: 'e', title: 'Care Worker', salaryMin: 10, salaryMax: 10 }),
+    mk({ id: 'f', title: 'Support Worker', location: 'London' }),
+    mk({ id: 'g', title: 'Care Worker', company: 'Pinnacle Recruitment' }),
+  ];
+  const p = profile({ roles: ['support worker'], needsSponsorship: true, hourlyFloor: 12.71, regions: ['leeds'], hideAgencies: true });
+  const x = explainFilters(jobs, p);
+  assert.equal(x.total, 7);
+  assert.deepEqual(x.hidden, { roles: 1, words: 1, sponsorship: 1, pay: 1, place: 1, licence: 0, recruiter: 1 });
+  assert.equal(x.shown, 1);
+  assert.equal(Object.values(x.hidden).reduce((a, b) => a + b, 0) + x.shown, x.total);
+  assert.deepEqual(Object.keys(x.hidden), FILTER_STEPS);
+  assert.equal(jobs.filter((j) => matchesProfile(j, p)).length, x.shown, 'matchesProfile agrees');
+});
+
+test('a folded entry remembers every advert id, so the next run does not see them as new', () => {
+  const a = mk({ id: 'r1', company: 'ITOL Recruit', title: 'Data Analyst Trainee', location: 'Leeds' });
+  const b = mk({ id: 'r2', company: 'ITOL Recruit', title: 'Data Analyst Trainee', location: 'York' });
+  const day1 = mergeJobs([], [a, b], '2026-11-24', 45);
+  assert.equal(day1.length, 1);
+  assert.deepEqual(idsOf(day1[0]).sort(), ['r1', 'r2']);
+  assert.equal(day1[0].copies, 2);
+  // day 2: both adverts are still live
+  const day2 = mergeJobs(day1, [a, b], '2026-11-25', 45);
+  assert.equal(day2.length, 1);
+  assert.equal(day2[0].firstSeen, '2026-11-24', 'still first seen on day 1, not new again');
+});
+
+test('a new place for an old advert does not make the role new', () => {
+  const a = mk({ id: 'r1', company: 'ITOL Recruit', title: 'Data Analyst Trainee', location: 'Leeds' });
+  const day1 = mergeJobs([], [a], '2026-11-24', 45);
+  const c = mk({ id: 'r3', company: 'ITOL Recruit', title: 'Data Analyst Trainee', location: 'Hull' });
+  const day2 = mergeJobs(day1, [a, c], '2026-11-25', 45);
+  assert.equal(day2.length, 1);
+  assert.equal(day2[0].firstSeen, '2026-11-24');
+  assert.equal(day2[0].locations.length, 2);
+  assert.deepEqual(idsOf(day2[0]).sort(), ['r1', 'r3']);
+});
+
+test('a genuinely new role is marked new', () => {
+  const a = mk({ id: 'r1', title: 'Data Analyst' });
+  const day1 = mergeJobs([], [a], '2026-11-24', 45);
+  const day2 = mergeJobs(day1, [a, mk({ id: 'r9', title: 'Business Analyst' })], '2026-11-25', 45);
+  assert.equal(day2.find((j) => j.title === 'Business Analyst').firstSeen, '2026-11-25');
+  assert.equal(day2.find((j) => j.title === 'Data Analyst').firstSeen, '2026-11-24');
 });

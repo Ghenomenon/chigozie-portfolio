@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage, explainFilters,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -155,7 +155,32 @@ function renderAll() {
     return j.score >= minScore;
   });
   $('all-count').textContent = `${items.length} of ${view.length} matching roles`;
+  renderWhy();
   fill($('list-all'), items, 'No roles match these filters.');
+}
+
+const WHY_LABELS = {
+  words: (n) => `${n} hidden by your words to hide`,
+  sponsorship: (n) => `${n} hidden because the advert says it will not sponsor`,
+  pay: (n) => `${n} hidden by your pay floor`,
+  place: (n) => `${n} are outside your places`,
+  licence: (n) => `${n} are not on the sponsor list`,
+  recruiter: (n) => `${n} are from recruiters`,
+};
+
+// Explains the gap between the feed size in the header and the roles shown.
+function renderWhy() {
+  const p = { ...DEFAULT_PROFILE, ...(profile || {}) };
+  const x = explainFilters(allJobs, p);
+  const matching = x.total - x.hidden.roles;
+  const lines = [`${x.total} roles in the feed, across all kinds of work`];
+  lines.push(p.roles.length
+    ? `${matching} have a title that matches ${p.roles.join(', ')}${p.similarTitles !== false ? ' or similar titles' : ''}`
+    : `${matching} match, because you set no roles`);
+  for (const step of Object.keys(WHY_LABELS)) if (x.hidden[step]) lines.push(WHY_LABELS[step](x.hidden[step]));
+  lines.push(`${x.shown} shown`);
+  $('why-list').replaceChildren(...lines.map((t) => el('li', { text: t })));
+  $('why-summary').textContent = `Why ${x.total - x.shown} of ${x.total} roles are hidden`;
 }
 
 function renderTracker() {
@@ -258,6 +283,7 @@ function openSetup() {
   $('s-remote').checked = p.includeRemote;
   $('s-sponsor').checked = p.needsSponsorship;
   $('s-licensed').checked = p.licensedOnly;
+  $('s-similar').checked = p.similarTitles !== false;
   $('s-agencies').checked = p.hideAgencies;
   const d = $('setup');
   if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
@@ -277,6 +303,7 @@ $('setup-form').addEventListener('submit', (e) => {
     needsSponsorship: $('s-sponsor').checked,
     licensedOnly: $('s-licensed').checked,
     hideAgencies: $('s-agencies').checked,
+    similarTitles: $('s-similar').checked,
   };
   store.set('sr.profile', profile);
   $('setup').close();
