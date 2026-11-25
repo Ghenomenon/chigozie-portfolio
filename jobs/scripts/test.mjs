@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   normCompany, titleOk, sponsorshipFromText, buildJob, dropReason, mergeJobs,
-  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText,
+  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, isAgency,
 } from './lib.mjs';
 
 const cfg = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -93,4 +93,20 @@ test('advert text is cleaned and capped for the apply prompt', () => {
   assert.equal(cleanText('<p>Build <b>reports</b>&nbsp;in Excel</p><ul><li>SQL</li></ul>'), 'Build reports in Excel\nSQL');
   const j = buildJob({ id: 'g', title: 'Data Analyst', company: 'X', url: 'u', source: 's', posted: today, description: 'a'.repeat(5000) }, cfg, null, today);
   assert.equal(j.summary.length, 1800);
+});
+
+test('recruiters are flagged from the name and the advert wording', () => {
+  for (const c of ['Harnham - Data & Analytics Recruitment', 'Hays Specialist Recruitment Limited', 'Adecco', 'ITOL Recruit', 'Reed']) assert.ok(isAgency({ company: c }), c);
+  for (const c of ['Barbour', 'Reed Smith LLP', 'Aviva']) assert.ok(!isAgency({ company: c }), c);
+  assert.ok(isAgency({ company: 'Northern Analytics', summary: 'We are recruiting on behalf of our client.' }));
+});
+
+test('a recruiter licence earns no bonus in the score', () => {
+  const map = new Map([[normCompany('Adecco'), true], [normCompany('Barbour'), true]]);
+  const mk = (company) => buildJob({ id: company, title: 'Data Analyst', company, url: 'u', source: 's', posted: today }, cfg, map, today);
+  const rec = mk('Adecco'), emp = mk('Barbour');
+  assert.equal(rec.agency, true);
+  assert.equal(emp.agency, false);
+  assert.ok(rec.reasons.includes('Recruiter: ask who the employer is'));
+  assert.ok(emp.reasons.includes('Employer holds a sponsor licence'));
 });

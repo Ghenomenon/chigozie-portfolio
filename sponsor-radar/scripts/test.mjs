@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
-  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold,
+  DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -141,4 +141,45 @@ test('old records with raw postcodes are cleaned when collapsed', () => {
   const old = { ...mk({ id: 'o', location: 'G11AB' }), locations: undefined, location: 'G11AB' };
   const [j] = collapseDuplicates([old]);
   assert.equal(j.location, 'Near G1');
+});
+
+test('recruiters are recognised from the company name', () => {
+  for (const c of ['Harnham - Data & Analytics Recruitment', 'Hays Specialist Recruitment Limited', 'Adecco', 'ITOL Recruit', 'Reed', 'Reed Specialist Recruitment', 'Robert Half', 'Spencer Ogden', 'Acme Staffing Ltd', 'Pinnacle Personnel']) {
+    assert.ok(isAgency({ company: c }), c);
+  }
+  for (const c of ['Barbour', 'Jackson Hogg', 'Reed Smith LLP', 'Reed Exhibitions', 'British Heart Foundation', 'Yusen Logistics', 'Aviva']) {
+    assert.ok(!isAgency({ company: c }), c);
+  }
+});
+
+test('recruiters are recognised from the advert wording', () => {
+  assert.ok(isAgency({ company: 'Northern Analytics', summary: 'We are recruiting on behalf of our client, a retailer in Leeds.' }));
+  assert.ok(isAgency({ company: 'Northern Analytics', summary: 'Acme is an employment agency for permanent roles.' }));
+  assert.ok(!isAgency({ company: 'Northern Analytics', summary: 'Join our analytics team in Leeds. We value clients and teamwork.' }));
+});
+
+test('the feed stores the recruiter flag, and old records fall back to a guess', () => {
+  assert.equal(mk({ company: 'Hays Specialist Recruitment Limited' }).agency, true);
+  assert.equal(mk({ company: 'Barbour' }).agency, false);
+  assert.equal(isRecruiter({ company: 'Adecco' }), true, 'no stored flag');
+  assert.equal(isRecruiter({ company: 'Adecco', agency: false }), false, 'stored flag wins');
+});
+
+test('profile can hide recruiters', () => {
+  const agency = mk({ company: 'Harnham Recruitment' });
+  assert.ok(matchesProfile(agency, profile()));
+  assert.ok(!matchesProfile(agency, profile({ hideAgencies: true })));
+  assert.ok(matchesProfile(mk({ company: 'Barbour' }), profile({ hideAgencies: true })));
+});
+
+test('a recruiter licence earns no score bonus and says to ask who the employer is', () => {
+  const map = new Map([[normCompany('Hays Specialist Recruitment Limited'), true], [normCompany('Barbour'), true]]);
+  const mkl = (company) => buildJob({ id: company, title: 'Data Analyst', company, url: 'u', source: 's', posted: today }, feed, map);
+  const p = profile({ needsSponsorship: true });
+  const rec = scoreJob(mkl('Hays Specialist Recruitment Limited'), p, thr);
+  const emp = scoreJob(mkl('Barbour'), p, thr);
+  assert.ok(rec.reasons.includes('Recruiter: ask who the employer is'));
+  assert.ok(!rec.reasons.includes('Employer holds a sponsor licence'));
+  assert.ok(emp.reasons.includes('Employer holds a sponsor licence'));
+  assert.ok(emp.score > rec.score);
 });

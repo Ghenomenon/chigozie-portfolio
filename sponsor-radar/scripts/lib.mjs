@@ -45,11 +45,26 @@ export function formatLocation(loc = '') {
   return m ? `Near ${m[1].toUpperCase()}` : s;
 }
 
+// ---------- recruiters ----------
+
+// Recruitment agencies advertise roles for clients. The sponsor register lists the agency, not the client,
+// so a licence or a missing licence says little about the real employer. This is a best guess from the
+// company name and the advert wording, and it can be wrong either way.
+const AGENCY_WORDS = /\b(recruit\w*|staffing|resourcing|headhunt\w*|personnel|appointments|executive search|search (and|&) selection|interim)\b/i;
+const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|search consultancy|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic)/i;
+const AGENCY_TEXT = /\bon behalf of (our|a|one of our|the) client|\bour client\b|\b(acting as|is) an? employment (agency|business)|\brecruitment (agency|consultancy|business)\b/i;
+
+export function isAgency(job) {
+  const name = String(job.company || '').trim();
+  if (AGENCY_KNOWN.test(name) || AGENCY_WORDS.test(name)) return true;
+  return AGENCY_TEXT.test(String(job.summary || job.description || '').slice(0, 1800));
+}
+
 // ---------- the shared feed (same for every user) ----------
 
 export function buildJob(raw, feedCfg, sponsorMap) {
   const text = `${raw.title} ${raw.description || ''}`;
-  return {
+  const job = {
     id: raw.id,
     title: raw.title.trim(),
     company: raw.company.trim(),
@@ -65,6 +80,8 @@ export function buildJob(raw, feedCfg, sponsorMap) {
     sponsorLicence: sponsorMap ? (sponsorMap.has(normCompany(raw.company)) ? 'licensed' : 'not-found') : 'unchecked',
     summary: cleanText(raw.description).slice(0, 1800),
   };
+  job.agency = isAgency(job);
+  return job;
 }
 
 // Feed-level drops only: things no user would want. Everything personal is decided on the phone.
@@ -121,6 +138,7 @@ export const DEFAULT_PROFILE = {
   includeRemote: true,
   needsSponsorship: false,
   licensedOnly: false,
+  hideAgencies: false,
 };
 
 const lc = (s) => String(s || '').toLowerCase();
@@ -144,7 +162,13 @@ export function matchesProfile(job, p) {
   if (p.salaryFloor && top && top < p.salaryFloor) return false;
   if (!inRegion(job, p)) return false;
   if (p.licensedOnly && job.sponsorLicence !== 'licensed') return false;
+  if (p.hideAgencies && isRecruiter(job)) return false;
   return true;
+}
+
+// Old stored records have no flag, so work it out from the name and advert.
+export function isRecruiter(job) {
+  return job.agency ?? isAgency(job);
 }
 
 // Indicative only. The real threshold depends on the job's occupation code.
@@ -176,7 +200,8 @@ export function scoreJob(job, p, thresholds) {
   if (job.sponsorship === 'refused') { s -= 3; reasons.push('Says no sponsorship'); }
   else if (job.sponsorship === 'offered') { s += 0.6; reasons.push('Advert mentions sponsorship'); }
   if (p.needsSponsorship) {
-    if (job.sponsorLicence === 'licensed') { s += 0.6; reasons.push('Employer holds a sponsor licence'); }
+    if (isRecruiter(job)) reasons.push('Recruiter: ask who the employer is');
+    else if (job.sponsorLicence === 'licensed') { s += 0.6; reasons.push('Employer holds a sponsor licence'); }
     if (belowSponsorThreshold(job, thresholds)) { s -= 0.5; reasons.push('Pay may be below the visa threshold'); }
   }
 

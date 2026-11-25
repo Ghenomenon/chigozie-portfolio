@@ -1,5 +1,5 @@
 // Cache the app shell. Always try the network first for the job list so the data is fresh.
-const CACHE = 'job-radar-v2';
+const CACHE = 'job-radar-v4';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'cv.md'];
 
 self.addEventListener('install', (e) => {
@@ -16,7 +16,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/.netlify/')) return; // advert reader: never cache
   e.respondWith(
     fetch(req)
       .then((res) => {
