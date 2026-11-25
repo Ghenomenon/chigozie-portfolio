@@ -11,6 +11,18 @@ A phone app that lists new UK analyst roles every morning. It lives at `/jobs/` 
 
 Search terms, pay floor and filter words are in `jobs/config.json`.
 
+## Apply button
+
+Each role has an Apply button. It opens a sheet that guides you through five steps:
+
+1. Paste the advert text. Adverts from Reed and Adzuna are saved, so this step can be skipped for them.
+2. Copy the prompt. It holds the advert, your CV from `jobs/cv.md` (or your edited copy in Settings) and strict rules: no invented facts, and no answers about right to work or visa status.
+3. Paste it into Claude. You get a tailored CV, a cover letter and draft answers to common form questions.
+4. Submit the application yourself on the employer's form. The app never sends anything.
+5. Tick the box and mark the role as Applied. The date is saved in your tracker.
+
+`jobs/cv.md` is public because the site is public. Edit your private version in Settings. It stays on your phone.
+
 ## Set up once
 
 1. Merge this branch into `main`. Scheduled workflows only run from the default branch.

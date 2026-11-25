@@ -174,3 +174,43 @@ h2 { font-size: 17px; margin: 0 0 6px; }
 .empty { text-align: center; padding: 28px 12px; color: var(--muted); }
 :focus-visible { outline: 3px solid #5b9bff; outline-offset: 2px; }
 @media (prefers-reduced-motion: no-preference) { .card { transition: transform .12s; } }
+
+/* Apply sheet */
+.btn.wide { width: 100%; }
+.btn.primary { background: var(--brand); color: #fff; border-color: transparent; font-weight: 600; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  resize: vertical;
+}
+dialog {
+  border: 0;
+  padding: 0;
+  width: min(100%, 560px);
+  max-height: 92dvh;
+  margin: auto auto 0;
+  border-radius: 18px 18px 0 0;
+  background: var(--card);
+  color: var(--text);
+}
+dialog::backdrop { background: rgba(8, 14, 24, .55); }
+.sheet { padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); }
+.sheet-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.sheet-head p { margin: 2px 0 0; font-size: 14px; }
+.icon-btn.dark { background: var(--bg); color: var(--text); border: 1px solid var(--line); }
+.steps { padding-left: 20px; margin: 14px 0; display: grid; gap: 16px; }
+.steps li::marker { font-weight: 700; color: var(--brand); }
+.steps p { margin: 2px 0 8px; font-size: 14px; }
+.check { display: flex; gap: 10px; align-items: center; min-height: 44px; }
+details summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+.chip.done { background: var(--good-bg); color: var(--good); border-color: transparent; }
+.actions { flex-wrap: wrap; }
+.actions select { flex: 1 1 100%; }
+.actions .primary, .actions .adv { flex: 1; }
+.cv-row { margin-top: 8px; }

@@ -9,6 +9,17 @@ export function normCompany(name = '') {
     .trim();
 }
 
+export function cleanText(html = '') {
+  return String(html)
+    .replace(/<br\s*\/?>|<\/p>|<\/li>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
 export function titleOk(title, cfg) {
   const t = ` ${String(title).toLowerCase()} `;
   if (cfg.titleExclude.some((w) => t.includes(w))) return false;
@@ -86,6 +97,7 @@ export function buildJob(raw, cfg, sponsorMap, today) {
     salaryText: raw.salaryText || '',
     workMode: detectWorkMode(raw.title, raw.location, raw.description || ''),
     sponsorship: sponsorshipFromText(text, cfg),
+    summary: cleanText(raw.description).slice(0, 1800),
     sponsorLicence: sponsorMap ? (sponsorMap.has(normCompany(raw.company)) ? 'licensed' : 'not-found') : 'unchecked',
   };
   const { score, reasons } = scoreJob(job, cfg);

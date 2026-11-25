@@ -51,7 +51,10 @@
 
   function setStatus(job, status) {
     if (!status) delete tracker[job.id];
-    else tracker[job.id] = { status, job };
+    else {
+      const applied = status === 'Applied' ? (tracker[job.id]?.applied || new Date().toISOString().slice(0, 10)) : tracker[job.id]?.applied;
+      tracker[job.id] = { status, job, ...(applied ? { applied } : {}) };
+    }
     store.set('jr.tracker', tracker);
     render();
   }
@@ -68,6 +71,7 @@
     else chips.append(el('span', { class: 'chip warn', text: 'Sponsor unchecked' }));
     if (j.sponsorship === 'offered') chips.append(el('span', { class: 'chip good', text: 'Advert mentions sponsorship' }));
     chips.append(el('span', { class: 'chip', text: `${j.source} · ${j.posted}` }));
+    if (t?.applied) chips.append(el('span', { class: 'chip done', text: `Applied ${t.applied}` }));
     if (j.firstSeen === latestFirstSeen() && !t) chips.append(el('span', { class: 'chip new', text: 'New' }));
 
     const select = el('select', { 'aria-label': 'Status', onchange: (e) => setStatus(j, e.target.value) },
@@ -82,7 +86,8 @@
       chips,
       el('p', { class: 'why', text: (j.reasons || []).join(' · ') }),
       el('div', { class: 'actions' },
-        el('a', { class: 'primary', href: safeUrl(j.url), target: '_blank', rel: 'noopener noreferrer', text: 'Open advert' }),
+        el('button', { class: 'btn primary', type: 'button', onclick: () => openApply(j), text: 'Apply' }),
+        el('a', { class: 'adv', href: safeUrl(j.url), target: '_blank', rel: 'noopener noreferrer', text: 'Advert' }),
         select));
   }
 
@@ -201,6 +206,105 @@
     reader.readAsText(file);
   }
 
+  // ---------- Apply flow ----------
+  let defaultCv = '';
+  const getCv = () => store.get('jr.cv', '') || defaultCv;
+  let applyJob = null;
+
+  function buildPrompt(j, advertText) {
+    const pay = salaryText(j);
+    const advert = advertText.trim()
+      || j.summary
+      || '(Not saved. Open the advert link. If you cannot read it, tell me and I will paste the text.)';
+    return [
+      'Help me apply for this job. Follow these rules.',
+      '- Use only facts that appear in MY CV below. Do not invent employers, dates, tools, qualifications or numbers.',
+      '- Reword and reorder to match the advert. Keep my skill levels as written, for example Power BI is working knowledge and Python is foundational.',
+      '- If the advert asks for something my CV does not support, say so. Do not cover the gap.',
+      '- Do not answer questions about my right to work, visa status or sponsorship. Leave those for me.',
+      '- Write in plain, direct British English. No filler phrases.',
+      '',
+      'JOB',
+      `Title: ${j.title}`,
+      `Company: ${j.company}`,
+      `Location: ${j.location || 'UK'}${j.workMode !== 'onsite' ? ` (${j.workMode})` : ''}`,
+      `Pay: ${pay}`,
+      `Advert link: ${j.url}`,
+      '',
+      'ADVERT TEXT',
+      advert,
+      '',
+      'MY CV',
+      getCv().trim(),
+      '',
+      'DO THIS, IN ORDER',
+      '1. List the 5 to 8 keywords from the advert that my CV should reflect. Then list any requirement my CV cannot support.',
+      '2. Write my tailored CV in markdown. Keep it to two pages. Put the most relevant results first.',
+      '3. Write a cover letter under 250 words. Name the company and role.',
+      '4. Draft answers under 100 words each for: Why this role? Why this company? Describe a time you improved a process with data. What is your experience with Excel and SQL?',
+      '5. List anything you were unsure about so I can check it. Leave salary expectations, notice period and start date blank for me.',
+    ].join('\n');
+  }
+
+  function refreshPrompt() {
+    if (!applyJob) return;
+    $('prompt-preview').value = buildPrompt(applyJob, $('advert').value);
+  }
+
+  function openApply(j) {
+    applyJob = j;
+    $('apply-title').textContent = j.title;
+    $('apply-sub').textContent = `${j.company} · ${j.location || 'UK'}`;
+    $('advert').value = '';
+    $('advert-note').textContent = j.summary
+      ? 'The saved advert text is included. Paste the full text to replace it.'
+      : 'No advert text is saved for this role. Open the advert, copy the text and paste it here.';
+    $('open-advert').href = safeUrl(j.url);
+    $('copy-note').textContent = '';
+    $('did-apply').checked = false;
+    $('mark-applied').disabled = true;
+    refreshPrompt();
+    const d = $('apply');
+    if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
+  }
+
+  async function copyPrompt() {
+    refreshPrompt();
+    const text = $('prompt-preview').value;
+    try {
+      await navigator.clipboard.writeText(text);
+      $('copy-note').textContent = 'Copied. Now open Claude and paste it.';
+    } catch {
+      const area = $('prompt-preview');
+      area.closest('details').open = true;
+      area.focus(); area.select();
+      $('copy-note').textContent = 'Copy blocked. The text is selected below. Use Copy from the menu.';
+    }
+  }
+
+  $('advert').addEventListener('input', refreshPrompt);
+  $('copy').addEventListener('click', copyPrompt);
+  $('did-apply').addEventListener('change', (e) => { $('mark-applied').disabled = !e.target.checked; });
+  $('mark-applied').addEventListener('click', () => {
+    if (applyJob) setStatus(applyJob, 'Applied');
+    $('apply').close();
+  });
+
+  // CV editor in Settings
+  async function loadDefaultCv() {
+    try { const r = await fetch('cv.md', { cache: 'no-cache' }); if (r.ok) defaultCv = await r.text(); } catch { /* offline */ }
+    $('cv-text').value = getCv();
+  }
+  $('cv-save').addEventListener('click', () => {
+    store.set('jr.cv', $('cv-text').value);
+    $('cv-note').textContent = 'Saved on this phone.';
+  });
+  $('cv-reset').addEventListener('click', () => {
+    try { localStorage.removeItem('jr.cv'); } catch { /* ignore */ }
+    $('cv-text').value = defaultCv;
+    $('cv-note').textContent = 'Reset to the default CV.';
+  });
+
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   ['q', 'f-sponsor', 'f-remote', 'f-pay', 'f-score'].forEach((id) => $(id).addEventListener('input', renderAll));
   $('refresh').addEventListener('click', load);
@@ -214,5 +318,6 @@
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
+  loadDefaultCv();
   load().then(() => show('today'));
 })();

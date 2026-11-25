@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   normCompany, titleOk, sponsorshipFromText, buildJob, dropReason, mergeJobs,
-  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob,
+  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText,
 } from './lib.mjs';
 
 const cfg = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -87,4 +87,10 @@ test('score stays between 0 and 5', () => {
   const j = { title: 'Junior Data Analyst', salaryMin: 28000, salaryMax: 32000, workMode: 'remote', location: 'Newcastle', sponsorship: 'offered', sponsorLicence: 'licensed' };
   const { score } = scoreJob(j, cfg);
   assert.ok(score >= 0 && score <= 5);
+});
+
+test('advert text is cleaned and capped for the apply prompt', () => {
+  assert.equal(cleanText('<p>Build <b>reports</b>&nbsp;in Excel</p><ul><li>SQL</li></ul>'), 'Build reports in Excel\nSQL');
+  const j = buildJob({ id: 'g', title: 'Data Analyst', company: 'X', url: 'u', source: 's', posted: today, description: 'a'.repeat(5000) }, cfg, null, today);
+  assert.equal(j.summary.length, 1800);
 });

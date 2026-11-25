@@ -47,6 +47,16 @@
         <button id="badge-btn" class="btn">Allow icon badge</button>
       </div>
       <div class="card">
+        <h2>Your CV</h2>
+        <p class="muted">This text goes into every Apply prompt. Edit it here and it stays on this phone only. Keep it factual, because the prompt tells Claude to use nothing else.</p>
+        <textarea id="cv-text" rows="12" aria-label="CV text"></textarea>
+        <div class="row">
+          <button id="cv-save" class="btn">Save CV</button>
+          <button id="cv-reset" class="btn">Reset to default</button>
+        </div>
+        <p id="cv-note" class="muted" role="status"></p>
+      </div>
+      <div class="card">
         <h2>Your tracker</h2>
         <p class="muted">Saved on this phone only. Export a copy to keep it safe or move it to another device.</p>
         <div class="row">
@@ -68,6 +78,51 @@
     <button data-tab="tracker">Tracker<span id="n-tracker" class="pill" hidden></span></button>
     <button data-tab="settings">Settings</button>
   </nav>
+
+  <dialog id="apply" aria-labelledby="apply-title">
+    <form method="dialog" class="sheet">
+      <div class="sheet-head">
+        <div>
+          <h2 id="apply-title">Apply</h2>
+          <p id="apply-sub" class="muted"></p>
+        </div>
+        <button class="icon-btn dark" value="close" aria-label="Close">&times;</button>
+      </div>
+
+      <ol class="steps">
+        <li>
+          <strong>Add the advert text</strong>
+          <p id="advert-note" class="muted"></p>
+          <textarea id="advert" rows="5" placeholder="Paste the full advert here for a better result"></textarea>
+        </li>
+        <li>
+          <strong>Copy the prompt</strong>
+          <p class="muted">It holds the advert, your CV and strict rules: no invented facts, and no answers about your right to work.</p>
+          <button type="button" id="copy" class="btn wide">Copy prompt</button>
+          <p id="copy-note" class="muted" role="status"></p>
+        </li>
+        <li>
+          <strong>Paste it into Claude</strong>
+          <p class="muted">You get a tailored CV, a cover letter and draft answers. Check every line before you use it.</p>
+          <a id="open-claude" class="btn wide" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Open Claude</a>
+        </li>
+        <li>
+          <strong>Submit the application yourself</strong>
+          <p class="muted">Use the employer's form. The app never sends anything for you.</p>
+          <a id="open-advert" class="btn wide" href="#" target="_blank" rel="noopener noreferrer">Open advert</a>
+        </li>
+        <li>
+          <strong>Record it</strong>
+          <label class="check"><input type="checkbox" id="did-apply"> I submitted my application</label>
+          <button type="button" id="mark-applied" class="btn wide primary" disabled>Mark as Applied</button>
+        </li>
+      </ol>
+      <details>
+        <summary>Preview prompt</summary>
+        <textarea id="prompt-preview" rows="10" readonly></textarea>
+      </details>
+    </form>
+  </dialog>
 
   <script src="app.js"></script>
 </body>
