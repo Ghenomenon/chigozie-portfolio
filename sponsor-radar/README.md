@@ -6,6 +6,10 @@ A phone app that lists new UK analyst roles every morning, with a Home Office sp
 
 - A GitHub Actions workflow (`.github/workflows/daily-sponsor-radar.yml`) runs at 07:15 UTC each day.
 - It searches Reed and Adzuna, checks each employer against the Home Office register of licensed sponsors, flags adverts that mention or refuse sponsorship, and saves a shared feed to `sponsor-radar/data/jobs.json`.
+- The daily job reads three pages (300 adverts) of each search, so the feed is a deeper sample of Reed than one page. It is still a sample, not every advert. Change `pagesPerQuery` in `sponsor-radar/config.json`.
+- A search for support worker also finds care assistant, care worker and healthcare assistant. People can turn this off in their search settings. The groups are in `SIMILAR_TITLES` in `sponsor-radar/scripts/lib.mjs`. The default "senior" filter applies to analyst roles only, because senior carer is an ordinary care grade.
+- The All tab has a "Why are roles hidden?" panel that explains the gap between the feed size and the roles shown.
+- Folded adverts remember every advert id, so a role is new only the first day it appears and adverts are not read in full twice.
 - The feed covers analyst roles plus four other families: support and care, customer service and admin, warehouse and logistics, and hospitality and retail. Edit `queries` and `titleMustMatch` in `sponsor-radar/config.json` to change this.
 - For people who need sponsorship, non-analyst roles carry a "Rarely sponsored" warning and a lower score. Most such roles no longer qualify for a Skilled Worker visa. The wording and date are in `sponsor-radar/data/thresholds.json`. Check gov.uk and keep it current.
 - Reed gives hourly, daily and weekly rates in the same field as yearly pay. The feed works out which unit the advert used, from the advert wording or the size of the number, and keeps both the quoted rate and a yearly figure. Cards show pay as advertised with the other form beside it, for example "£14.75 an hour (about £28,763 a year)" or "£28,000 a year (about £14.36 an hour)".

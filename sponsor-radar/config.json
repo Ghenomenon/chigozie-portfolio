@@ -76,7 +76,8 @@
   ],
   "maxAgeDays": 14,
   "keepDays": 45,
-  "maxDetailFetches": 600,
+  "pagesPerQuery": 3,
+  "maxDetailFetches": 1200,
   "sponsorRefusal": [
     "no sponsorship",
     "no visa sponsorship",

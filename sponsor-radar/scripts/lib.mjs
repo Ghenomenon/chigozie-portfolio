@@ -172,7 +172,7 @@ export function buildJob(raw, feedCfg, sponsorMap) {
     workMode: detectWorkMode(raw.title, raw.location, raw.description || ''),
     sponsorship: sponsorshipFromText(text, feedCfg),
     sponsorLicence: sponsorMap ? (sponsorMap.has(normCompany(raw.company)) ? 'licensed' : 'not-found') : 'unchecked',
-    summary: cleanText(raw.description).slice(0, 1800),
+    summary: cleanText(raw.description).slice(0, 1000),
   };
   job.agency = isAgency(job);
   job.family = jobFamily(job.title);
@@ -191,32 +191,40 @@ export function dropReason(job, feedCfg, today) {
   return null;
 }
 
-// One advert posted for many locations becomes one entry with a list of places.
+// One advert posted for many places becomes one entry with a list of places. The entry remembers every
+// advert id it holds, so the next run recognises those adverts instead of treating them as new.
+// It counts as new from the earliest day any of its adverts was first seen.
 export function collapseDuplicates(jobs) {
   const groups = new Map();
+  const earlier = (a, b) => (!a ? b : !b ? a : a < b ? a : b);
   for (const j of jobs) {
     const key = `${normCompany(j.company)}|${j.title.toLowerCase().replace(/\s+/g, ' ').trim()}`;
     const locations = (j.locations && j.locations.length ? j.locations : [j.location]).filter(Boolean).map(formatLocation);
+    const ids = j.ids && j.ids.length ? j.ids : [j.id];
     const g = groups.get(key);
-    if (!g) { groups.set(key, { ...j, locations: [...new Set(locations)], copies: 1 }); continue; }
+    if (!g) { groups.set(key, { ...j, locations: [...new Set(locations)], ids: [...new Set(ids)] }); continue; }
     g.locations = [...new Set([...g.locations, ...locations])];
-    g.copies += 1;
+    g.ids = [...new Set([...g.ids, ...ids])];
     if (j.posted > g.posted) { g.posted = j.posted; g.url = j.url; g.id = j.id; }
-    if (j.firstSeen && (!g.firstSeen || j.firstSeen > g.firstSeen)) g.firstSeen = j.firstSeen;
+    g.firstSeen = earlier(g.firstSeen, j.firstSeen);
   }
   return [...groups.values()].map((g) => ({
     ...g,
+    copies: g.ids.length,
     location: g.locations.length > 1 ? `${g.locations[0]} and ${g.locations.length - 1} more` : (g.locations[0] || g.location || 'UK'),
   }));
 }
 
-// Merge today's jobs into the stored list. Keeps firstSeen so "new" survives reruns on the same day.
+// Every advert id an entry stands for.
+export const idsOf = (job) => (job.ids && job.ids.length ? job.ids : [job.id]);
+
+// Merge today's jobs into the stored list. An advert already seen under any stored entry keeps that
+// entry's first-seen date, so "new" means new to the feed and not new to this run.
 export function mergeJobs(existing, fresh, today, keepDays) {
+  const firstSeenById = new Map();
+  for (const e of existing) for (const id of idsOf(e)) firstSeenById.set(id, e.firstSeen);
   const byId = new Map(existing.map((j) => [j.id, j]));
-  for (const j of fresh) {
-    const old = byId.get(j.id);
-    byId.set(j.id, { ...j, firstSeen: old?.firstSeen || today });
-  }
+  for (const j of fresh) byId.set(j.id, { ...j, firstSeen: firstSeenById.get(j.id) || today });
   const cutoff = Date.parse(today) - keepDays * 86400000;
   const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff).map(normalisePay);
   return collapseDuplicates(kept).sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
@@ -235,12 +243,36 @@ export const DEFAULT_PROFILE = {
   needsSponsorship: false,
   licensedOnly: false,
   hideAgencies: false,
+  similarTitles: true,       // a search for support worker also finds care assistant and similar titles
 };
 
 const lc = (s) => String(s || '').toLowerCase();
 
+// Groups of titles that mean much the same job. A search for any word in a group finds the others too.
+const SIMILAR_TITLES = [
+  ['support worker', 'care worker', 'care assistant', 'carer', 'healthcare assistant', 'health care assistant', 'support assistant', 'residential support', 'enabler'],
+  ['customer service', 'customer support', 'customer advisor', 'contact centre', 'call centre'],
+  ['administrator', 'admin assistant', 'receptionist', 'data entry', 'office assistant'],
+  ['warehouse operative', 'warehouse assistant', 'picker', 'packer', 'forklift'],
+  ['kitchen assistant', 'kitchen porter', 'chef', 'cook'],
+  ['retail assistant', 'sales assistant', 'shop assistant', 'team member'],
+  ['data analyst', 'reporting analyst', 'bi analyst', 'business intelligence analyst', 'insight analyst'],
+];
+
+export function expandRoles(roles, similar = true) {
+  const out = new Set(roles.map(lc));
+  if (similar) {
+    for (const r of [...out]) {
+      for (const group of SIMILAR_TITLES) if (group.includes(r)) group.forEach((g) => out.add(g));
+    }
+  }
+  return [...out];
+}
+
 export function titleMatchesRoles(job, p) {
-  return !p.roles.length || p.roles.some((k) => lc(job.title).includes(lc(k)));
+  if (!p.roles.length) return true;
+  const title = lc(job.title);
+  return expandRoles(p.roles, p.similarTitles !== false).some((k) => title.includes(k));
 }
 
 export function inRegion(job, p) {
@@ -250,15 +282,40 @@ export function inRegion(job, p) {
   return p.regions.some((r) => places.some((l) => l.includes(lc(r))));
 }
 
-export function matchesProfile(job, p) {
-  if (!titleMatchesRoles(job, p)) return false;
-  if (p.exclude.some((w) => lc(job.title).includes(lc(w)))) return false;
-  if (p.needsSponsorship && job.sponsorship === 'refused') return false;
-  if (belowPayFloor(job, p)) return false;
-  if (!inRegion(job, p)) return false;
-  if (p.licensedOnly && job.sponsorLicence !== 'licensed') return false;
-  if (p.hideAgencies && isRecruiter(job)) return false;
-  return true;
+// "Senior" means a management level in analyst work but an ordinary job grade in care and service work,
+// so the default "senior" filter only applies to analyst roles.
+function hiddenWord(job, p) {
+  const title = lc(job.title);
+  const analyst = familyOf(job) === 'analyst';
+  return p.exclude.some((w) => title.includes(lc(w)) && !(lc(w) === 'senior' && !analyst));
+}
+
+// The first reason a job is hidden for this person, or null when it is shown. The order is the order
+// the "Why are roles hidden?" panel reports.
+export const FILTER_STEPS = ['roles', 'words', 'sponsorship', 'pay', 'place', 'licence', 'recruiter'];
+
+export function filterReason(job, p) {
+  if (!titleMatchesRoles(job, p)) return 'roles';
+  if (hiddenWord(job, p)) return 'words';
+  if (p.needsSponsorship && job.sponsorship === 'refused') return 'sponsorship';
+  if (belowPayFloor(job, p)) return 'pay';
+  if (!inRegion(job, p)) return 'place';
+  if (p.licensedOnly && job.sponsorLicence !== 'licensed') return 'licence';
+  if (p.hideAgencies && isRecruiter(job)) return 'recruiter';
+  return null;
+}
+
+export const matchesProfile = (job, p) => filterReason(job, p) === null;
+
+// Counts for the panel: how many roles each setting removes, and how many are left.
+export function explainFilters(jobs, p) {
+  const hidden = Object.fromEntries(FILTER_STEPS.map((s) => [s, 0]));
+  let shown = 0;
+  for (const j of jobs) {
+    const r = filterReason(j, p);
+    if (r) hidden[r] += 1; else shown += 1;
+  }
+  return { total: jobs.length, hidden, shown };
 }
 
 // Old stored records have no flag, so work it out from the name and advert.

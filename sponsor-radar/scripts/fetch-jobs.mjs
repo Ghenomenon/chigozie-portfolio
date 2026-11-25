@@ -6,15 +6,16 @@ import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate,
+  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate, idsOf,
 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'));
-const dataPath = join(root, 'data', 'jobs.json');
+const dataPath = process.env.FEED_PATH || join(root, 'data', 'jobs.json');
 const today = new Date().toISOString().slice(0, 10);
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// FETCH_DELAY_MS lets tests run without waiting. Real runs keep the polite gaps.
+const sleep = (ms) => new Promise((r) => setTimeout(r, process.env.FETCH_DELAY_MS !== undefined ? Number(process.env.FETCH_DELAY_MS) : ms));
 
 async function getJson(url, headers = {}) {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -41,28 +42,40 @@ async function loadSponsorMap() {
   }
 }
 
+const errors = [];
+
 async function fromReed(query) {
   const key = process.env.REED_API_KEY;
   if (!key) return [];
   const auth = { Authorization: 'Basic ' + Buffer.from(`${key}:`).toString('base64') };
-  const url = `https://www.reed.co.uk/api/1.0/search?keywords=${encodeURIComponent(query)}&resultsToTake=100`;
-  const data = await getJson(url, auth);
   const out = [];
-  for (const r of data.results || []) {
-    out.push({
-      id: `reed-${r.jobId}`,
-      title: r.jobTitle,
-      company: r.employerName,
-      location: r.locationName,
-      url: r.jobUrl,
-      source: 'Reed',
-      posted: parseReedDate(r.date),
-      salaryMin: r.minimumSalary || null,
-      salaryMax: r.maximumSalary || null,
-      description: r.jobDescription || '',
-      _detailAuth: auth,
-      _detailUrl: `https://www.reed.co.uk/api/1.0/jobs/${r.jobId}`,
-    });
+  for (let page = 0; page < cfg.pagesPerQuery; page++) {
+    const url = `https://www.reed.co.uk/api/1.0/search?keywords=${encodeURIComponent(query)}&resultsToTake=100&resultsToSkip=${page * 100}`;
+    let data;
+    try { data = await getJson(url, auth); } catch (e) {
+      if (page === 0) throw e;                       // nothing for this search at all
+      errors.push(`fromReed "${query}" page ${page + 1}: ${e.message}`);
+      break;                                         // keep the pages already read
+    }
+    const results = data.results || [];
+    for (const r of results) {
+      out.push({
+        id: `reed-${r.jobId}`,
+        title: r.jobTitle,
+        company: r.employerName,
+        location: r.locationName,
+        url: r.jobUrl,
+        source: 'Reed',
+        posted: parseReedDate(r.date),
+        salaryMin: r.minimumSalary || null,
+        salaryMax: r.maximumSalary || null,
+        description: r.jobDescription || '',
+        _detailAuth: auth,
+        _detailUrl: `https://www.reed.co.uk/api/1.0/jobs/${r.jobId}`,
+      });
+    }
+    if (results.length < 100) break;                 // last page
+    await sleep(250);
   }
   return out;
 }
@@ -70,32 +83,47 @@ async function fromReed(query) {
 async function fromAdzuna(query) {
   const id = process.env.ADZUNA_APP_ID, key = process.env.ADZUNA_APP_KEY;
   if (!id || !key) return [];
-  const url = `https://api.adzuna.com/v1/api/jobs/gb/search/1?app_id=${id}&app_key=${key}&results_per_page=50`
-    + `&what=${encodeURIComponent(query)}&sort_by=date&max_days_old=${cfg.maxAgeDays}`;
-  const data = await getJson(url);
-  return (data.results || []).map((r) => ({
-    id: `adzuna-${r.id}`,
-    title: r.title.replace(/<[^>]+>/g, ''),
-    company: r.company?.display_name || 'Unknown',
-    location: r.location?.display_name || '',
-    url: r.redirect_url,
-    source: 'Adzuna',
-    posted: (r.created || '').slice(0, 10) || today,
-    salaryMin: r.salary_min ? Math.round(r.salary_min) : null,
-    salaryMax: r.salary_max ? Math.round(r.salary_max) : null,
-    description: r.description || '',
-  }));
+  const out = [];
+  const pages = cfg.pagesPerQuery * 2;               // Adzuna pages hold 50, Reed pages hold 100
+  for (let page = 1; page <= pages; page++) {
+    const url = `https://api.adzuna.com/v1/api/jobs/gb/search/${page}?app_id=${id}&app_key=${key}&results_per_page=50`
+      + `&what=${encodeURIComponent(query)}&sort_by=date&max_days_old=${cfg.maxAgeDays}`;
+    let data;
+    try { data = await getJson(url); } catch (e) {
+      if (page === 1) throw e;
+      errors.push(`fromAdzuna "${query}" page ${page}: ${e.message}`);
+      break;
+    }
+    const results = data.results || [];
+    for (const r of results) {
+      out.push({
+        id: `adzuna-${r.id}`,
+        title: r.title.replace(/<[^>]+>/g, ''),
+        company: r.company?.display_name || 'Unknown',
+        location: r.location?.display_name || '',
+        url: r.redirect_url,
+        source: 'Adzuna',
+        posted: (r.created || '').slice(0, 10) || today,
+        salaryMin: r.salary_min ? Math.round(r.salary_min) : null,
+        salaryMax: r.salary_max ? Math.round(r.salary_max) : null,
+        description: r.description || '',
+      });
+    }
+    if (results.length < 50) break;
+    await sleep(250);
+  }
+  return out;
 }
 
 async function main() {
   const existing = (() => {
     try { return JSON.parse(readFileSync(dataPath, 'utf8')).jobs || []; } catch { return []; }
   })();
-  const known = new Map(existing.map((j) => [j.id, j]));
+  // Every advert id a stored entry stands for, so adverts folded into one entry are still recognised.
+  const known = new Map(existing.flatMap((j) => idsOf(j).map((id) => [id, j])));
 
   const sponsorMap = await loadSponsorMap();
   const raw = [];
-  const errors = [];
   for (const q of cfg.queries) {
     for (const src of [fromReed, fromAdzuna]) {
       try { raw.push(...await src(q)); } catch (e) { errors.push(`${src.name} "${q}": ${e.message}`); }
@@ -142,7 +170,7 @@ async function main() {
   const merged = mergeJobs(existing, kept, today, cfg.keepDays);
   const newToday = merged.filter((j) => j.firstSeen === today).length;
 
-  mkdirSync(join(root, 'data'), { recursive: true });
+  mkdirSync(dirname(dataPath), { recursive: true });
   writeFileSync(dataPath, JSON.stringify({
     updated: new Date().toISOString(),
     sponsorRegisterChecked: Boolean(sponsorMap),
