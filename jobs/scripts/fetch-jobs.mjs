@@ -5,19 +5,22 @@
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { readBoards } from '../../sponsor-radar/scripts/boards.mjs';
 import {
   buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate,
 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'));
-const dataPath = join(root, 'data', 'jobs.json');
+const dataPath = process.env.FEED_PATH || join(root, 'data', 'jobs.json');
+// Employer boards are found by Sponsor Radar's daily job. This one only reads them.
+const boardsPath = process.env.BOARDS_PATH || join(root, '..', 'sponsor-radar', 'data', 'boards.json');
 const today = new Date().toISOString().slice(0, 10);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function getJson(url, headers = {}) {
-  const res = await fetch(url, { headers: { 'User-Agent': 'job-radar/1.0', ...headers } });
+  const res = await fetch(url, { headers: { 'User-Agent': 'job-radar/1.0', ...headers }, signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`${res.status} ${url.split('?')[0]}`);
   return res.json();
 }
@@ -83,6 +86,17 @@ async function fromAdzuna(query) {
   }));
 }
 
+
+// Adverts from employer job boards (Greenhouse, Lever, Ashby) that Sponsor Radar has found. They arrive in full.
+// The usual title filter then keeps the analyst roles.
+async function fromBoards() {
+  let found;
+  try { found = JSON.parse(readFileSync(boardsPath, 'utf8')).found || {}; } catch { return { raw: [], note: 'no boards file yet' }; }
+  const places = (() => { try { return JSON.parse(readFileSync(join(root, 'data', 'places.json'), 'utf8')); } catch { return null; } })();
+  const res = await readBoards({ found, missed: {} }, { today, getJson, places });
+  return { raw: res.raw, note: `${res.boards} employer boards read, ${res.raw.length} UK adverts${res.failed ? `, ${res.failed} failed` : ''}` };
+}
+
 async function main() {
   const existing = (() => {
     try { return JSON.parse(readFileSync(dataPath, 'utf8')).jobs || []; } catch { return []; }
@@ -97,6 +111,8 @@ async function main() {
       await sleep(250);
     }
   }
+  try { const b = await fromBoards(); raw.push(...b.raw); console.log(`Employer boards: ${b.note}`); } catch (e) { errors.push(`employer boards: ${e.message}`); }
+
   if (!process.env.REED_API_KEY && !(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY)) {
     console.warn('No API keys set. Add REED_API_KEY or ADZUNA_APP_ID and ADZUNA_APP_KEY as repository secrets.');
   }

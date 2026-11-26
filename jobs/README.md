@@ -58,6 +58,10 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 - **Light and dark.** Settings has an Appearance option: match the phone (the default), light, or dark. The choice is saved on the phone and applied before the page paints. Native controls follow the theme, and the browser bar takes its colour from the header paint. The dark colours live in two blocks in `styles.css` that must stay identical. `sponsor-radar/scripts/design.test.mjs` checks both apps.
 - **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. It switches off when the phone asks for reduced motion. Settings has a Motion option: Match my phone (default) or Always on, which plays the motion even with Reduce Motion turned on.
 
+## Employer job boards
+
+The daily job also reads the employer job boards that Sponsor Radar has found (Greenhouse, Lever and Ashby). It keeps the UK adverts, and your usual title filter then keeps the analyst roles. Boards come from `sponsor-radar/data/boards.json`. See the Sponsor Radar README for how they are found.
+
 ## Add a role by link
 
 Indeed and LinkedIn do not let apps read their adverts. The plus button in the header lets you save a role from any site yourself.

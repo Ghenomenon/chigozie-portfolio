@@ -8,18 +8,19 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-function run() {
-  const dir = mkdtempSync(join(tmpdir(), 'sr-feed-'));
+function run(extraEnv = {}, dirIn = null) {
+  const dir = dirIn || mkdtempSync(join(tmpdir(), 'sr-feed-'));
   const feed = join(dir, 'jobs.json');
   const calls = join(dir, 'calls.log');
   writeFileSync(calls, '');
   const r = spawnSync(process.execPath, ['--import', join(here, 'testing', 'mock-fetch.mjs'), join(here, 'fetch-jobs.mjs')], {
-    env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, REGISTER_PATH: join(dir, 'register.bin'), CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' },
+    env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, REGISTER_PATH: join(dir, 'register.bin'), BOARDS_PATH: join(dir, 'boards.json'), BOARDS_PROBES: '0', BOARDS_SLICE: '0', ...extraEnv, CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' },
     encoding: 'utf8',
   });
   const urls = readFileSync(calls, 'utf8').split('\n').filter(Boolean);
   const data = existsSync(feed) ? JSON.parse(readFileSync(feed, 'utf8')) : null;
-  return { r, urls, data };
+  const boards = existsSync(join(dir, 'boards.json')) ? JSON.parse(readFileSync(join(dir, 'boards.json'), 'utf8')) : null;
+  return { r, urls, data, boards, dir };
 }
 
 const skipsFor = (urls, keyword) => urls
@@ -65,7 +66,7 @@ test('a second run reuses stored adverts and makes no repeat detail calls for th
   const dir = mkdtempSync(join(tmpdir(), 'sr-feed2-'));
   const feed = join(dir, 'jobs.json');
   const calls = join(dir, 'calls.log');
-  const env = { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' };
+  const env = { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, REGISTER_PATH: join(dirname(feed), 'register.bin'), BOARDS_PATH: join(dirname(feed), 'boards.json'), BOARDS_PROBES: '0', BOARDS_SLICE: '0', CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' };
   const args = ['--import', join(here, 'testing', 'mock-fetch.mjs'), join(here, 'fetch-jobs.mjs')];
   writeFileSync(calls, '');
   spawnSync(process.execPath, args, { env, encoding: 'utf8' });
@@ -87,7 +88,7 @@ function session() {
     run(extra = {}) {
       writeFileSync(calls, '');
       const r = spawnSync(process.execPath, ['--import', join(here, 'testing', 'mock-fetch.mjs'), join(here, 'fetch-jobs.mjs')], {
-        env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '', ...extra },
+        env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, REGISTER_PATH: join(dirname(feed), 'register.bin'), BOARDS_PATH: join(dirname(feed), 'boards.json'), BOARDS_PROBES: '0', BOARDS_SLICE: '0', CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '', ...extra },
         encoding: 'utf8',
       });
       const urls = readFileSync(calls, 'utf8').split('\n').filter(Boolean);
@@ -203,4 +204,49 @@ test('an entry returned every day is never removed', () => {
   for (const d of ['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26']) last = s.run({ FEED_TODAY: d });
   assert.ok(last.data.jobs.some((j) => j.title === 'Support Worker'));
   assert.ok(last.data.jobs.every((j) => j.lastSeen === '2026-11-26'));
+});
+
+// ---------- employer boards ----------
+
+const ON = { BOARDS_PROBES: '4', BOARDS_SLICE: '4' };   // the other tests keep boards off by trying no employers
+
+const boardCalls = (urls) => urls.filter((u) => /boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com/.test(u));
+
+test('the daily job finds employer boards for licensed sponsors and adds their UK adverts in full', () => {
+  const { r, data, boards } = run(ON);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  const found = Object.entries(boards.found);
+  assert.ok(found.length >= 1 && found.length <= 4, `found ${found.length} boards`);
+  assert.ok(found.every(([, b]) => b.ats === 'greenhouse' && /^sponsor\d+$/.test(b.slug)));
+  const fromBoards = data.jobs.filter((j) => j.source === 'Employer site');
+  assert.equal(fromBoards.length, found.length, 'one UK advert per board, and the Texas advert is left out');
+  for (const j of fromBoards) {
+    assert.equal(j.title, 'Data Analyst');
+    assert.equal(j.sponsorLicence, 'licensed', 'named as on the register');
+    assert.equal(j.detail, true, 'the whole advert came with it');
+    assert.equal(j.sponsorship, 'refused', 'the advert says it does not sponsor');
+    assert.match(j.location, /London/);
+  }
+  assert.match(r.stdout, /Employer boards: \d+ known, tried 4 employers and found \d+/);
+});
+
+test('boards already found are read again without being searched for twice', () => {
+  const first = run(ON);
+  assert.equal(first.r.status, 0);
+  const second = run(ON, first.dir);
+  const probes = boardCalls(second.urls);
+  const foundSlugs = Object.values(first.boards.found).map((b) => b.slug);
+  for (const slug of foundSlugs) assert.ok(probes.some((u) => u.includes(`/boards/${slug}/jobs`)), `${slug} was read again`);
+  const triedBefore = new Set([...Object.keys(first.boards.found), ...Object.keys(first.boards.missed)]);
+  const triedNow = new Set([...Object.keys(second.boards.found), ...Object.keys(second.boards.missed)]);
+  assert.ok(triedNow.size > triedBefore.size || triedBefore.size >= 4, 'a second run moves on to employers it has not tried');
+  assert.ok(second.data.jobs.filter((j) => j.source === 'Employer site').length >= foundSlugs.length);
+});
+
+test('with no boards behind the guesses, nothing is added and the run does not fail', () => {
+  const { r, data, boards } = run({ ...ON, MOCK_NO_BOARDS: '1' });
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.equal(Object.keys(boards.found).length, 0);
+  assert.ok(Object.keys(boards.missed).length >= 1, 'misses are remembered so they are not tried every day');
+  assert.equal(data.jobs.filter((j) => j.source === 'Employer site').length, 0);
 });

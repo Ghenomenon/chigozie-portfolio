@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { isUkLocation, readBoard, slugGuesses, boardBelongsTo, registerSlice, displayName } from './boards.mjs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
@@ -563,4 +564,79 @@ test('a role added by link gets a stable id, a sponsor check and the agency tag'
   const li = manualJob({ url: 'https://www.linkedin.com/jobs/view/support-worker-at-acme-care-ltd-3912345678' }, '2026-11-26', reg);
   assert.equal(li.title, 'Support Worker');
   assert.equal(li.sponsorLicence, 'licensed', 'title and employer filled from the link');
+});
+
+// ---------- employer boards ----------
+
+const placesForBoards = JSON.parse(readFileSync(new URL('../data/places.json', import.meta.url), 'utf8'));
+
+test('UK locations are told apart from the same place names abroad', () => {
+  const uk = (t, o = {}) => isUkLocation(t, { places: placesForBoards, ...o });
+  for (const t of ['London, UK', 'Remote (UK)', 'Cardiff, London or Remote (UK)', 'London', 'Leeds, England', 'Edinburgh', 'Belfast, Northern Ireland', 'United Kingdom']) assert.ok(uk(t), t);
+  for (const t of ['Austin, TX', 'Cambridge, MA', 'New York, NY (HQ)', 'Dublin, Ireland', 'Barcelona', 'Remote (Canada)', 'Toronto, ON', 'Sydney, Australia', '']) assert.ok(!uk(t), t);
+  assert.ok(uk('', { country: 'GB' }), 'an explicit country code wins');
+  assert.ok(!uk('London', { country: 'US' }), 'London, Ontario is not here');
+});
+
+test('a Greenhouse board gives UK adverts with their full text', () => {
+  const data = { jobs: [
+    { id: 1, title: 'Data Analyst', company_name: 'Acme', absolute_url: 'https://job-boards.greenhouse.io/acme/jobs/1', location: { name: 'London, UK' }, first_published: '2026-11-20T10:00:00-05:00', content: '&lt;p&gt;Build reports &amp;amp; dashboards.&lt;/p&gt;&lt;p&gt;No sponsorship.&lt;/p&gt;' },
+    { id: 2, title: 'Data Analyst', company_name: 'Acme', absolute_url: 'https://job-boards.greenhouse.io/acme/jobs/2', location: { name: 'Austin, TX' }, first_published: '2026-11-20T10:00:00-05:00', content: 'x' },
+  ] };
+  const out = readBoard('greenhouse', 'acme', data, 'Acme Ltd', { places: placesForBoards, today: '2026-11-26' });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, 'greenhouse-acme-1');
+  assert.equal(out[0].company, 'Acme Ltd');
+  assert.equal(out[0].posted, '2026-11-20');
+  assert.ok(out[0].description.includes('Build reports & dashboards.'), out[0].description);
+  assert.ok(!out[0].description.includes('<'), 'no markup left');
+  assert.equal(out[0]._full, true);
+});
+
+test('a Lever board uses its country code, and an Ashby board checks secondary places', () => {
+  const lever = [
+    { id: 'a', text: 'Analyst', hostedUrl: 'https://jobs.lever.co/acme/a', categories: { location: 'London' }, country: 'GB', createdAt: 1790000000000, descriptionPlain: 'Do analysis.', lists: [{ text: 'You will', content: '<li>Write SQL</li>' }], additionalPlain: 'Right to work required.' },
+    { id: 'b', text: 'Analyst', hostedUrl: 'https://jobs.lever.co/acme/b', categories: { location: 'London' }, country: 'CA', createdAt: 1790000000000, descriptionPlain: 'Canada.' },
+  ];
+  const l = readBoard('lever', 'acme', lever, 'Acme', { places: placesForBoards, today: '2026-11-26' });
+  assert.deepEqual(l.map((x) => x.id), ['lever-acme-a']);
+  assert.ok(l[0].description.includes('Write SQL') && l[0].description.includes('Right to work'));
+  const ashby = { jobs: [
+    { id: 'x', title: 'Analyst', location: 'New York, NY', secondaryLocations: [{ location: 'Remote (UK)' }], jobUrl: 'https://jobs.ashbyhq.com/acme/x', publishedAt: '2026-11-01T00:00:00Z', descriptionPlain: 'Hello', isListed: true },
+    { id: 'y', title: 'Analyst', location: 'New York, NY', secondaryLocations: [], jobUrl: 'https://jobs.ashbyhq.com/acme/y', publishedAt: '2026-11-01T00:00:00Z', descriptionPlain: 'Hello', isListed: true },
+    { id: 'z', title: 'Analyst', location: 'London', jobUrl: 'https://jobs.ashbyhq.com/acme/z', publishedAt: '2026-11-01T00:00:00Z', descriptionPlain: 'Hidden', isListed: false },
+  ] };
+  assert.deepEqual(readBoard('ashby', 'acme', ashby, 'Acme', { places: placesForBoards, today: '2026-11-26' }).map((x) => x.id), ['ashby-acme-x']);
+});
+
+test('slug guesses come from the employer name, and generic first words are not guessed', () => {
+  assert.deepEqual(slugGuesses('Monzo Bank Limited'), ['monzobank', 'monzo-bank', 'monzo']);
+  assert.deepEqual(slugGuesses('GoCardless Ltd'), ['gocardless']);
+  assert.ok(!slugGuesses('British Care Services Ltd').includes('british'));
+  assert.deepEqual(slugGuesses(''), []);
+});
+
+test('a board only counts when it belongs to the employer', () => {
+  const gh = { jobs: [{ company_name: 'Monzo', title: 'Engineer', content: 'Join Monzo' }] };
+  assert.ok(boardBelongsTo('Monzo Bank Limited', 'greenhouse', gh));
+  assert.ok(!boardBelongsTo('Monzo Bank Limited', 'greenhouse', { jobs: [{ company_name: 'Other Co', title: 'Engineer', content: 'Join us' }] }));
+  const lever = [{ text: 'Engineer', descriptionPlain: 'At Palantir we build', hostedUrl: 'https://jobs.lever.co/palantir/1' }];
+  assert.ok(boardBelongsTo('Palantir Technologies UK Ltd', 'lever', lever));
+  assert.ok(!boardBelongsTo('Palantir Technologies UK Ltd', 'lever', [{ text: 'Cook', descriptionPlain: 'Kitchen work', hostedUrl: 'https://jobs.lever.co/palantir/2' }]));
+  assert.ok(!boardBelongsTo('Acme', 'ashby', { jobs: [] }));
+});
+
+test('the register slice moves on each day and wraps round', () => {
+  const keys = Array.from({ length: 10 }, (_, i) => `employer ${i}`);
+  const a = registerSlice(keys, '2026-11-26', 4), b = registerSlice(keys, '2026-11-27', 4);
+  assert.equal(a.length, 4);
+  assert.notDeepEqual(a, b);
+  assert.deepEqual(registerSlice(keys, '2026-11-26', 4), a, 'same day, same slice');
+  assert.equal(registerSlice(keys, '2026-11-26', 50).length, 10, 'never more than the register holds');
+  const mixed = [...Array.from({ length: 20 }, (_, i) => `acme software ${i}`), ...Array.from({ length: 20 }, (_, i) => `care home ${i}`)];
+  const slice = registerSlice(mixed, '2026-11-26', 10);
+  assert.equal(slice.length, 10);
+  assert.equal(slice.filter((k) => k.includes('software')).length, 8, 'four in five are tech or finance names');
+  assert.deepEqual(registerSlice([], '2026-11-26', 4), []);
+  assert.equal(displayName('monzo bank'), 'Monzo Bank');
 });

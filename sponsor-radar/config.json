@@ -114,5 +114,12 @@
     "offer visa sponsorship",
     "offer sponsorship",
     "provide sponsorship"
-  ]
+  ],
+  "boards": {
+    "enabled": true,
+    "probesPerRun": 450,
+    "registerSlicePerRun": 300,
+    "recheckMissDays": 30,
+    "seeds": []
+  }
 }
