@@ -67,6 +67,15 @@ Test it with `node --test netlify/lib/advert.test.mjs`.
 - **Sponsor register.** It is published under the Open Government Licence. Credit the source.
 - **Privacy.** The app stores nothing about users on a server. If you add accounts, alerts or payments, you will hold personal data and need a privacy notice.
 
+## Design
+
+Both apps share one design system. Only the brand colour differs: warm orange for Sponsor Radar and cobalt blue for Job Radar.
+
+- **Type.** Archivo (a variable font with weight and width axes) for headings and numbers, and Bricolage Grotesque for text. Both are self-hosted in `fonts/` under the SIL Open Font Licence, so the apps make no request to a font service.
+- **Shape.** Pill buttons and filter pills, large rounded cards, a floating tab bar with line icons, and a painted header band behind a very large title.
+- **Colour.** Set in the variables at the top of `styles.css`. The block between the `BRAND-START` and `BRAND-END` markers, and the matching dark-mode block, are the only parts that differ between the two apps. Every text and background pairing was checked against WCAG AA contrast, in light and dark.
+- **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. All of it switches off when the phone asks for reduced motion.
+
 ## Limits
 
 - Without a Reed or Adzuna key the workflow finds nothing.

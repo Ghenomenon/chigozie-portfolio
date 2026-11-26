@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage, explainFilters,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage, explainFilters, familyOf,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -22,6 +22,10 @@ let seen = new Set(store.get('sr.seen', []));
 let tab = 'today';
 let defaultCv = '';
 let applyJob = null;
+let fam = 'all';                       // kind-of-work pill on the All tab
+let didFirstRender = false;
+let animateUntil = 0;                  // cards settle in only for a moment after a deliberate change
+const replay = () => { animateUntil = performance.now() + 900; };
 
 const $ = (id) => document.getElementById(id);
 const list = (s) => String(s || '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
@@ -46,18 +50,26 @@ const RATE_WORDS = { hour: 'an hour', day: 'a day', week: 'a week' };
 const money = (n) => '£' + (Math.round(n * 100) % 100 === 0 ? Math.round(n).toLocaleString('en-GB') : n.toFixed(2));
 const range = (lo, hi, f) => (lo && hi && lo !== hi ? `${f(lo)} to ${f(hi)}` : f(lo || hi));
 
-// Pay as the advert quoted it, with the other form beside it.
-function salaryText(j) {
+// Pay as the advert quoted it (main), with the other form beside it (alt).
+function salaryParts(j) {
   const unit = j.salaryUnit;
   if (unit && unit !== 'year') {
     const top = j.salaryMax || j.salaryMin;
-    return `${range(j.rateMin, j.rateMax, money)} ${RATE_WORDS[unit]} (about ${gbp(top)} a year)`;
+    return { main: `${range(j.rateMin, j.rateMax, money)} ${RATE_WORDS[unit]}`, alt: `(about ${gbp(top)} a year)` };
   }
   if (j.salaryMin || j.salaryMax) {
-    return `${range(j.salaryMin, j.salaryMax, gbp)} a year (about ${range(j.salaryMin && j.salaryMin / 1950, j.salaryMax && j.salaryMax / 1950, money)} an hour)`;
+    return {
+      main: `${range(j.salaryMin, j.salaryMax, gbp)} a year`,
+      alt: `(about ${range(j.salaryMin && j.salaryMin / 1950, j.salaryMax && j.salaryMax / 1950, money)} an hour)`,
+    };
   }
-  return 'Pay not stated';
+  return { main: 'Pay not stated', alt: '' };
 }
+const salaryText = (j) => { const { main, alt } = salaryParts(j); return alt ? `${main} ${alt}` : main; };
+const shortDate = (iso) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+};
 
 // ---------- profile and filtering ----------
 
@@ -88,14 +100,12 @@ function setStatus(job, status) {
 
 // ---------- cards ----------
 
-function card(j) {
+function card(j, { fresh = false } = {}) {
   const t = tracker[j.id];
   const p = profile || DEFAULT_PROFILE;
   const fitClass = j.score >= 3.8 ? 'hi' : j.score < 2.5 ? 'lo' : '';
   const chips = el('div', { class: 'chips' });
-  chips.append(el('span', { class: 'chip', text: j.location || 'UK' }));
   if (j.workMode !== 'onsite') chips.append(el('span', { class: 'chip good', text: j.workMode === 'remote' ? 'Remote' : 'Hybrid' }));
-  chips.append(el('span', { class: 'chip' + (j.salaryMin || j.salaryMax ? '' : ' warn'), text: salaryText(j) }));
   if (isRecruiter(j)) chips.append(el('span', { class: 'chip warn', title: 'A recruiter advertises for clients. Its licence says little about the real employer.', text: 'Recruiter · ask who the employer is' }));
   else if (j.sponsorLicence === 'licensed') chips.append(el('span', { class: 'chip good', text: 'Licensed sponsor' }));
   else if (j.sponsorLicence === 'not-found') chips.append(el('span', { class: 'chip warn', text: 'Not on register' }));
@@ -104,31 +114,47 @@ function card(j) {
   if (p.needsSponsorship && isHardToSponsor(j) && j.sponsorship !== 'offered') chips.append(el('span', { class: 'chip warn', title: thresholds?.lowSkill?.text || 'Check the occupation code on gov.uk.', text: 'Rarely sponsored · check gov.uk' }));
   if (belowMinimumWage(j, thresholds)) chips.append(el('span', { class: 'chip warn', title: 'Compared with the over-21 rate. Part-time or unstated hours can make this wrong.', text: `Below the minimum wage (${money(thresholds.minimumWage.over21)} an hour)` }));
   if (p.needsSponsorship && belowSponsorThreshold(j, thresholds)) chips.append(el('span', { class: 'chip warn', text: 'Pay may be below visa threshold' }));
-  chips.append(el('span', { class: 'chip', text: `${j.source} · ${j.posted}` }));
   if (t?.applied) chips.append(el('span', { class: 'chip done', text: `Applied ${t.applied}` }));
-  if (j.firstSeen === latestFirstSeen() && !t) chips.append(el('span', { class: 'chip new', text: 'New' }));
+  const isNew = fresh && j.firstSeen === latestFirstSeen() && !t;
+  if (isNew) chips.append(el('span', { class: 'chip new', text: 'New' }));
 
   const select = el('select', { 'aria-label': 'Status', onchange: (e) => setStatus(j, e.target.value) },
     el('option', { value: '', text: 'Not tracked' }),
     ...STATUSES.map((s) => el('option', { value: s, text: s })));
   select.value = t?.status || '';
 
-  return el('article', { class: 'card job' },
+  const { main, alt } = salaryParts(j);
+  const payClass = 'pay' + (j.salaryMin || j.salaryMax ? '' : ' none');
+
+  return el('article', { class: 'card job' + (isNew ? ' is-new' : '') },
     el('div', { class: 'head' },
-      el('div', {}, el('h2', { text: j.title }), el('p', { class: 'co', text: j.company })),
+      el('div', {},
+        el('h2', { text: j.title }),
+        el('p', { class: 'co', text: j.company }),
+        el('p', { class: 'where', text: j.location || 'UK' })),
       j.score === undefined ? null : el('div', { class: 'fit ' + fitClass, title: 'Fit out of 5', text: j.score.toFixed(1) })),
+    el('p', { class: payClass }, el('strong', { text: main }), alt ? document.createTextNode(' ') : null, alt ? el('span', { class: 'alt', text: alt }) : null),
     chips,
     el('p', { class: 'why', text: (j.reasons || []).join(' · ') }),
+    el('p', { class: 'src', text: `${j.source}, posted ${shortDate(j.posted)}` }),
     el('div', { class: 'actions' },
       el('button', { class: 'btn primary', type: 'button', onclick: () => openApply(j), text: 'Apply' }),
       el('a', { class: 'adv', href: safeUrl(j.url), target: '_blank', rel: 'noopener noreferrer', text: 'Advert' }),
       select));
 }
 
-function fill(container, items, emptyText) {
+function fill(container, items, emptyText, opts = {}) {
   container.replaceChildren();
   if (!items.length) { container.append(el('p', { class: 'empty', text: emptyText })); return; }
-  for (const j of items) container.append(card(j));
+  items.forEach((j, i) => {
+    const c = card(j, opts);
+    c.style.setProperty('--i', Math.min(i, 7));
+    container.append(c);
+  });
+  if (performance.now() < animateUntil) {
+    container.classList.add('enter');
+    setTimeout(() => container.classList.remove('enter'), 1100);
+  }
 }
 
 function renderToday() {
@@ -139,8 +165,30 @@ function renderToday() {
   const holder = el('div');
   fill(holder, items, profile
     ? 'Nothing new that matches your search. Check back after the morning update, or widen your search in Settings.'
-    : 'Set up your search to see roles.');
+    : 'Set up your search to see roles.', { fresh: true });
   c.append(holder);
+}
+
+const FAMILY_LABELS = [
+  ['all', 'All'],
+  ['analyst', 'Analyst'],
+  ['support-care', 'Care'],
+  ['service-admin', 'Service and admin'],
+  ['warehouse', 'Warehouse'],
+  ['hospitality-retail', 'Hospitality and retail'],
+];
+
+function renderFchips() {
+  const box = $('fchips');
+  const counts = { all: view.filter((j) => !isHidden(j)).length };
+  for (const j of view) if (!isHidden(j)) counts[familyOf(j)] = (counts[familyOf(j)] || 0) + 1;
+  box.replaceChildren();
+  for (const [key, label] of FAMILY_LABELS) {
+    if (key !== 'all' && !counts[key]) continue;
+    const b = el('button', { type: 'button', class: 'fchip' + (fam === key ? ' on' : ''), 'aria-pressed': String(fam === key), onclick: () => { fam = key; replay(); renderAll(); } }, document.createTextNode(label), el('small', { text: String(counts[key] || 0) }));
+    box.append(b);
+  }
+  if (fam !== 'all' && !counts[fam]) fam = 'all';
 }
 
 function renderAll() {
@@ -152,8 +200,10 @@ function renderAll() {
     if (q && !(`${j.title} ${j.company}`.toLowerCase().includes(q))) return false;
     if ($('f-remote').checked && j.workMode === 'onsite') return false;
     if ($('f-pay').checked && !(j.salaryMin || j.salaryMax)) return false;
+    if (fam !== 'all' && familyOf(j) !== fam) return false;
     return j.score >= minScore;
   });
+  renderFchips();
   $('all-count').textContent = `${items.length} of ${view.length} matching roles`;
   renderWhy();
   fill($('list-all'), items, 'No roles match these filters.');
@@ -234,10 +284,21 @@ function render() {
   updateBadges();
 }
 
+const PAGE_TITLES = { today: 'Today', all: 'All roles', tracker: 'Tracker', settings: 'Settings' };
+
 function show(name) {
   tab = name;
-  for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === name);
-  for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${name}`;
+  for (const b of document.querySelectorAll('.tabs button')) {
+    b.classList.toggle('on', b.dataset.tab === name);
+    if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  for (const v of document.querySelectorAll('.view')) {
+    const on = v.id === `view-${name}`;
+    v.hidden = !on;
+    v.classList.remove('fade-in');
+    if (on) { void v.offsetWidth; v.classList.add('fade-in'); }
+  }
+  $('page-title').textContent = PAGE_TITLES[name] || name;
   if (name === 'today') {
     todayJobs().forEach((j) => seen.add(j.id));
     store.set('sr.seen', [...seen].slice(-500));
@@ -263,6 +324,7 @@ async function load() {
   } catch {
     $('updated').textContent = 'Offline. Showing saved data if any.';
   }
+  if (!didFirstRender) { didFirstRender = true; replay(); }
   render();
 }
 
@@ -307,6 +369,7 @@ $('setup-form').addEventListener('submit', (e) => {
   };
   store.set('sr.profile', profile);
   $('setup').close();
+  replay();
   render();
   show('today');
 });

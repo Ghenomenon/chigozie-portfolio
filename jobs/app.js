@@ -39,11 +39,24 @@
   const safeUrl = (u) => (/^https:\/\//i.test(u) ? u : '#');
   const gbp = (n) => '£' + Math.round(n).toLocaleString('en-GB');
 
-  function salaryText(j) {
-    if (j.salaryMin && j.salaryMax && j.salaryMin !== j.salaryMax) return `${gbp(j.salaryMin)} to ${gbp(j.salaryMax)}`;
-    if (j.salaryMin || j.salaryMax) return gbp(j.salaryMin || j.salaryMax);
-    return 'Pay not stated';
+  const money = (n) => '£' + (Math.round(n * 100) % 100 === 0 ? Math.round(n).toLocaleString('en-GB') : n.toFixed(2));
+  const range = (lo, hi, f) => (lo && hi && lo !== hi ? `${f(lo)} to ${f(hi)}` : f(lo || hi));
+
+  // Pay as the advert quoted it (main), with the other form beside it (alt). This feed holds yearly pay.
+  function salaryParts(j) {
+    if (j.salaryMin || j.salaryMax) {
+      return {
+        main: `${range(j.salaryMin, j.salaryMax, gbp)} a year`,
+        alt: `(about ${range(j.salaryMin && j.salaryMin / 1950, j.salaryMax && j.salaryMax / 1950, money)} an hour)`,
+      };
+    }
+    return { main: 'Pay not stated', alt: '' };
   }
+  const salaryText = (j) => { const { main, alt } = salaryParts(j); return alt ? `${main} ${alt}` : main; };
+  const shortDate = (iso) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  };
 
   function latestFirstSeen() {
     return jobs.reduce((m, j) => (j.firstSeen && j.firstSeen > m ? j.firstSeen : m), '');
@@ -64,43 +77,60 @@
     render();
   }
 
-  function card(j) {
+  function card(j, { fresh = false } = {}) {
     const t = tracker[j.id];
     const fitClass = j.score >= 3.8 ? 'hi' : j.score < 2.5 ? 'lo' : '';
     const chips = el('div', { class: 'chips' });
-    chips.append(el('span', { class: 'chip', text: j.location || 'UK' }));
     if (j.workMode !== 'onsite') chips.append(el('span', { class: 'chip good', text: j.workMode === 'remote' ? 'Remote' : 'Hybrid' }));
-    chips.append(el('span', { class: 'chip' + (j.salaryMin || j.salaryMax ? '' : ' warn'), text: salaryText(j) }));
     if (isRecruiter(j)) chips.append(el('span', { class: 'chip warn', title: 'A recruiter advertises for clients. Its licence says little about the real employer.', text: 'Recruiter · ask who the employer is' }));
     else if (j.sponsorLicence === 'licensed') chips.append(el('span', { class: 'chip good', text: 'Licensed sponsor' }));
     else if (j.sponsorLicence === 'not-found') chips.append(el('span', { class: 'chip warn', text: 'Not on register' }));
     else chips.append(el('span', { class: 'chip warn', text: 'Sponsor unchecked' }));
     if (j.sponsorship === 'offered') chips.append(el('span', { class: 'chip good', text: 'Advert mentions sponsorship' }));
-    chips.append(el('span', { class: 'chip', text: `${j.source} · ${j.posted}` }));
     if (t?.applied) chips.append(el('span', { class: 'chip done', text: `Applied ${t.applied}` }));
-    if (j.firstSeen === latestFirstSeen() && !t) chips.append(el('span', { class: 'chip new', text: 'New' }));
+    const isNew = fresh && j.firstSeen === latestFirstSeen() && !t;
+    if (isNew) chips.append(el('span', { class: 'chip new', text: 'New' }));
 
     const select = el('select', { 'aria-label': 'Status', onchange: (e) => setStatus(j, e.target.value) },
       el('option', { value: '', text: 'Not tracked' }),
       ...STATUSES.map((s) => el('option', { value: s, text: s })));
     select.value = t?.status || '';
 
-    return el('article', { class: 'card job' },
+    const { main, alt } = salaryParts(j);
+    return el('article', { class: 'card job' + (isNew ? ' is-new' : '') },
       el('div', { class: 'head' },
-        el('div', {}, el('h2', { text: j.title }), el('p', { class: 'co', text: j.company })),
+        el('div', {},
+          el('h2', { text: j.title }),
+          el('p', { class: 'co', text: j.company }),
+          el('p', { class: 'where', text: j.location || 'UK' })),
         el('div', { class: 'fit ' + fitClass, title: 'Fit out of 5', text: j.score.toFixed(1) })),
+      el('p', { class: 'pay' + (j.salaryMin || j.salaryMax ? '' : ' none') }, el('strong', { text: main }), alt ? document.createTextNode(' ') : null, alt ? el('span', { class: 'alt', text: alt }) : null),
       chips,
       el('p', { class: 'why', text: (j.reasons || []).join(' · ') }),
+      el('p', { class: 'src', text: `${j.source}, posted ${shortDate(j.posted)}` }),
       el('div', { class: 'actions' },
         el('button', { class: 'btn primary', type: 'button', onclick: () => openApply(j), text: 'Apply' }),
         el('a', { class: 'adv', href: safeUrl(j.url), target: '_blank', rel: 'noopener noreferrer', text: 'Advert' }),
         select));
   }
 
-  function fill(container, list, emptyText) {
+  // Cards settle in only for a moment after a deliberate change, not while typing in a search box.
+  let animateUntil = 0;
+  let didFirstRender = false;
+  const replay = () => { animateUntil = performance.now() + 900; };
+
+  function fill(container, list, emptyText, opts = {}) {
     container.replaceChildren();
     if (!list.length) { container.append(el('p', { class: 'empty', text: emptyText })); return; }
-    for (const j of list) container.append(card(j));
+    list.forEach((j, i) => {
+      const c = card(j, opts);
+      c.style.setProperty('--i', Math.min(i, 7));
+      container.append(c);
+    });
+    if (performance.now() < animateUntil) {
+      container.classList.add('enter');
+      setTimeout(() => container.classList.remove('enter'), 1100);
+    }
   }
 
   function renderToday() {
@@ -109,7 +139,7 @@
     const list = todayJobs();
     c.append(el('h3', { text: `New today (${list.length})` }));
     const holder = el('div');
-    fill(holder, list, 'Nothing new yet. Check back after the morning update.');
+    fill(holder, list, 'Nothing new yet. Check back after the morning update.', { fresh: true });
     c.append(holder);
   }
 
@@ -162,10 +192,21 @@
     updateBadges();
   }
 
+  const PAGE_TITLES = { today: 'Today', all: 'All roles', tracker: 'Tracker', settings: 'Settings' };
+
   function show(name) {
     tab = name;
-    for (const b of document.querySelectorAll('.tabs button')) b.classList.toggle('on', b.dataset.tab === name);
-    for (const v of document.querySelectorAll('.view')) v.hidden = v.id !== `view-${name}`;
+    for (const b of document.querySelectorAll('.tabs button')) {
+      b.classList.toggle('on', b.dataset.tab === name);
+      if (b.dataset.tab === name) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    }
+    for (const v of document.querySelectorAll('.view')) {
+      const on = v.id === `view-${name}`;
+      v.hidden = !on;
+      v.classList.remove('fade-in');
+      if (on) { void v.offsetWidth; v.classList.add('fade-in'); }
+    }
+    $('page-title').textContent = PAGE_TITLES[name] || name;
     if (name === 'today') {
       todayJobs().forEach((j) => seen.add(j.id));
       store.set('jr.seen', [...seen].slice(-500));
@@ -188,6 +229,7 @@
     } catch {
       $('updated').textContent = 'Offline. Showing saved data if any.';
     }
+    if (!didFirstRender) { didFirstRender = true; replay(); }
     render();
   }
 

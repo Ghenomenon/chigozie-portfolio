@@ -6,7 +6,7 @@
   <title>Job Radar</title>
   <meta name="description" content="Daily UK analyst roles with pay and sponsorship checks.">
   <meta name="robots" content="noindex">
-  <meta name="theme-color" content="#1f3a5f">
+  <meta name="theme-color" content="#2F6BEA">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Job Radar">
@@ -18,11 +18,15 @@
 </head>
 <body>
   <header class="top">
-    <div>
-      <h1>Job Radar</h1>
-      <p id="updated" class="muted">Loading</p>
+    <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="top-row">
+      <h1 class="wordmark">Job Radar</h1>
+      <button id="refresh" class="icon-btn" aria-label="Refresh the feed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+      </button>
     </div>
-    <button id="refresh" class="icon-btn" aria-label="Refresh">&#8635;</button>
+    <p id="page-title" class="page-title" aria-live="polite">Today</p>
+    <p id="updated" class="muted">Loading</p>
   </header>
 
   <main>
@@ -30,9 +34,11 @@
     <section id="view-all" class="view" hidden>
       <div class="filters">
         <input id="q" type="search" placeholder="Search title or company" aria-label="Search">
-        <label><input type="checkbox" id="f-sponsor"> Licensed sponsors only</label>
-        <label><input type="checkbox" id="f-remote"> Remote or hybrid</label>
-        <label><input type="checkbox" id="f-pay"> Pay stated</label>
+        <div class="togs">
+          <label class="tog"><input type="checkbox" id="f-sponsor"><span>Licensed sponsors only</span></label>
+          <label class="tog"><input type="checkbox" id="f-remote"><span>Remote or hybrid</span></label>
+          <label class="tog"><input type="checkbox" id="f-pay"><span>Pay stated</span></label>
+        </div>
         <label class="range">Min fit <output id="f-score-out">0</output>
           <input type="range" id="f-score" min="0" max="5" step="0.5" value="0">
         </label>
@@ -73,10 +79,22 @@
   </main>
 
   <nav class="tabs" aria-label="Sections">
-    <button data-tab="today" class="on">Today<span id="n-today" class="pill" hidden></span></button>
-    <button data-tab="all">All</button>
-    <button data-tab="tracker">Tracker<span id="n-tracker" class="pill" hidden></span></button>
-    <button data-tab="settings">Settings</button>
+    <button data-tab="today" class="on">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+      Today<span id="n-today" class="pill" hidden></span>
+    </button>
+    <button data-tab="all">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+      All
+    </button>
+    <button data-tab="tracker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4.5L5 21V4.5a1 1 0 0 1 1-1z"/></svg>
+      Tracker<span id="n-tracker" class="pill" hidden></span>
+    </button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      Settings
+    </button>
   </nav>
 
   <dialog id="apply" aria-labelledby="apply-title">
