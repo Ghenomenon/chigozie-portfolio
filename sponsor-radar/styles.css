@@ -423,31 +423,31 @@ textarea { min-height: 0; padding: 14px 16px; border-radius: 20px; font: 14px/1.
 .foot { text-align: center; margin: 22px 0 6px; }
 
 /* ---------- motion: a soft blur that clears as things settle ---------- */
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes settle {
-    from { opacity: 0; transform: translateY(12px); filter: blur(7px); }
-    to   { opacity: 1; transform: none; filter: blur(0); }
-  }
-  @keyframes settle-view {
-    from { opacity: 0; filter: blur(6px); }
-    to   { opacity: 1; filter: blur(0); }
-  }
-  @keyframes sheet-in {
-    from { opacity: 0; transform: translateY(32px); filter: blur(8px); }
-    to   { opacity: 1; transform: none; filter: blur(0); }
-  }
-  @keyframes drift {
-    from { transform: translate3d(0, 0, 0) scale(1); }
-    to   { transform: translate3d(6%, 4%, 0) scale(1.08); }
-  }
-  .enter > * { animation: settle .55s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
-  .view.fade-in { animation: settle-view .3s var(--ease) both; }
-  dialog[open] { animation: sheet-in .42s var(--ease) both; }
-  dialog[open]::backdrop { animation: settle-view .3s ease both; }
-  .blobs span { animation: drift 22s ease-in-out infinite alternate; }
-  .blobs span:nth-child(2) { animation-duration: 28s; animation-delay: -6s; }
-  .blobs span:nth-child(3) { animation-duration: 25s; animation-delay: -12s; }
+/* The page sets data-motion="on" when the phone allows motion, or when Motion is set to Always on in Settings. */
+@keyframes settle {
+  from { opacity: 0; transform: translateY(12px); filter: blur(7px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
 }
+@keyframes settle-view {
+  from { opacity: 0; filter: blur(6px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(32px); filter: blur(8px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(6%, 4%, 0) scale(1.08); }
+}
+
+:root[data-motion="on"] .enter > * { animation: settle .55s var(--ease) both; animation-delay: calc(var(--i, 0) * 50ms); }
+:root[data-motion="on"] .view.fade-in { animation: settle-view .3s var(--ease) both; }
+:root[data-motion="on"] dialog[open] { animation: sheet-in .42s var(--ease) both; }
+:root[data-motion="on"] dialog[open]::backdrop { animation: settle-view .3s ease both; }
+:root[data-motion="on"] .blobs span { animation: drift 22s ease-in-out infinite alternate; }
+:root[data-motion="on"] .blobs span:nth-child(2) { animation-duration: 28s; animation-delay: -6s; }
+:root[data-motion="on"] .blobs span:nth-child(3) { animation-duration: 25s; animation-delay: -12s; }
 
 /* Placeholders use the muted text colour in both themes, so they stay readable. */
 ::placeholder { color: var(--muted); opacity: 1; }

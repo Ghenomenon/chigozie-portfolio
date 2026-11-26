@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-title" content="Sponsor Radar">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="color-scheme" content="light dark">
-  <script>try{var t=localStorage.getItem("sr.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+  <script>try{var d=document.documentElement,t=localStorage.getItem("sr.theme");if(t==="light"||t==="dark")d.setAttribute("data-theme",t);if(localStorage.getItem("sr.motion")==="on"||!matchMedia("(prefers-reduced-motion: reduce)").matches)d.setAttribute("data-motion","on")}catch(e){}</script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
@@ -62,6 +62,14 @@
           <label class="tog"><input type="radio" name="theme" value="auto" checked><span>Match my phone</span></label>
           <label class="tog"><input type="radio" name="theme" value="light"><span>Light</span></label>
           <label class="tog"><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Motion</h2>
+        <p class="muted">The soft blur as things settle. Always on plays it even when your phone has Reduce Motion turned on.</p>
+        <div class="togs" role="radiogroup" aria-label="Motion">
+          <label class="tog"><input type="radio" name="motion" value="auto" checked><span>Match my phone</span></label>
+          <label class="tog"><input type="radio" name="motion" value="on"><span>Always on</span></label>
         </div>
       </div>
       <div class="card">

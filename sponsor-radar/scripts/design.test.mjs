@@ -39,10 +39,19 @@ for (const [name, rel] of Object.entries(apps)) {
     assert.match(text, /:root\[data-theme="dark"\]\s*\{\s*color-scheme:\s*dark/);
   });
 
+  test(`${name}: motion is gated on data-motion, not only the phone setting`, () => {
+    assert.ok(!/@media \(prefers-reduced-motion/.test(text), 'animations must not sit behind the media query');
+    assert.match(text, /:root\[data-motion="on"\] \.enter > \*/);
+    assert.match(text, /:root\[data-motion="on"\] dialog\[open\]/);
+  });
+
   test(`${name}: the page applies a saved choice before it paints`, () => {
     const html = readFileSync(new URL(rel.replace('styles.css', 'index.html'), import.meta.url), 'utf8');
     assert.match(html, /name="color-scheme" content="light dark"/);
-    assert.match(html, /<script>try\{var t=localStorage\.getItem\("(sr|jr)\.theme"\)/);
+    assert.match(html, /<script>try\{var d=document\.documentElement,t=localStorage\.getItem\("(sr|jr)\.theme"\)/);
+    assert.match(html, /getItem\("(sr|jr)\.motion"\)==="on"/);
+    assert.match(html, /name="motion" value="auto" checked/);
+    assert.match(html, /name="motion" value="on"/);
     assert.match(html, /name="theme" value="auto" checked/);
     assert.match(html, /name="theme" value="light"/);
     assert.match(html, /name="theme" value="dark"/);

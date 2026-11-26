@@ -616,6 +616,23 @@ document.querySelectorAll('input[name="theme"]').forEach((r) => {
   });
 });
 phoneDark.addEventListener('change', syncThemeColour);   // matters when the choice is "match my phone"
+// Motion: plays when the phone allows it, or always when chosen here.
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const readMotion = () => { try { return localStorage.getItem('sr.motion') === 'on' ? 'on' : 'auto'; } catch { return 'auto'; } };
+function applyMotion() {
+  if (readMotion() === 'on' || !reduceMotion.matches) rootEl.setAttribute('data-motion', 'on'); else rootEl.removeAttribute('data-motion');
+}
+applyMotion();
+reduceMotion.addEventListener('change', applyMotion);
+document.querySelectorAll('input[name="motion"]').forEach((r) => {
+  r.checked = r.value === readMotion();
+  r.addEventListener('change', () => {
+    if (!r.checked) return;
+    try { if (r.value === 'auto') localStorage.removeItem('sr.motion'); else localStorage.setItem('sr.motion', r.value); } catch { /* private mode */ }
+    applyMotion();
+    replay();
+  });
+});
 
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
 ['q', 'f-remote', 'f-pay', 'f-score'].forEach((id) => $(id).addEventListener('input', renderAll));
