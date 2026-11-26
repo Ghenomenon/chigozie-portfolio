@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isUkLocation, readBoard, slugGuesses, boardBelongsTo, registerSlice, displayName } from './boards.mjs';
+import { isUkLocation, readBoard, slugGuesses, boardBelongsTo, boardFits, discoverBoards, registerSlice, displayName, RULES } from './boards.mjs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
@@ -642,4 +642,72 @@ test('the register slice moves on each day and wraps round', () => {
   assert.equal(slice.filter((k) => k.includes('software')).length, 8, 'four in five are tech or finance names');
   assert.deepEqual(registerSlice([], '2026-11-26', 4), []);
   assert.equal(displayName('monzo bank'), 'Monzo Bank');
+});
+
+// ---------- employer boards: the second set of rules ----------
+
+test('big cities abroad are not taken for the small UK places that share their name', () => {
+  const uk = (t) => isUkLocation(t, { places: placesForBoards });
+  for (const t of ['New York, New York', 'US - San Francisco', 'Remote (US)', 'NY office', 'Durham office or Remote - US', 'Dublin office']) assert.ok(!uk(t), t);
+  for (const t of ['London office', 'Manchester (M1)', 'Leeds (Hybrid)', 'London Hybrid']) assert.ok(uk(t), t);
+});
+
+test('the short name is only guessed when the rest of the name is a word like Bank or Labs', () => {
+  assert.deepEqual(slugGuesses('Atlas Care Homes Ltd'), ['atlascarehomes', 'atlas-care-homes']);
+  assert.deepEqual(slugGuesses('Axiom Home Care Limited'), ['axiomhomecare', 'axiom-home-care']);
+  assert.ok(slugGuesses('Ripple Labs Ltd').includes('ripple'));
+});
+
+test('Greenhouse has to name the same company', () => {
+  const gh = (company) => ({ jobs: [{ company_name: company, title: 'Analyst', content: 'x' }] });
+  assert.ok(boardBelongsTo('Monzo Bank Limited', 'greenhouse', gh('Monzo')));
+  assert.ok(boardBelongsTo('Ripple', 'greenhouse', gh('Ripple Labs')));
+  assert.ok(!boardBelongsTo('Axiom Home Care Limited', 'greenhouse', gh('Axiom')), 'Axiom Global is not a home care company');
+  assert.ok(!boardBelongsTo('Wise', 'greenhouse', gh('Wise Worksite Field Sales')));
+  assert.ok(!boardBelongsTo('Convene', 'greenhouse', gh('Convene Hospitality Group')), 'unclear, so left out');
+});
+
+test('on Lever and Ashby the employer has to be named, with a capital letter, in most adverts', () => {
+  assert.ok(boardBelongsTo('Enable Scotland', 'lever', [{ text: 'Support Worker', descriptionPlain: 'Enable Scotland supports people' }]));
+  assert.ok(!boardBelongsTo('Enable Scotland', 'lever', [{ text: 'Developer', descriptionPlain: 'We enable teams across Scotland' }]), 'the word enable is not the employer');
+  assert.ok(!boardBelongsTo('Palantir Technologies UK Ltd', 'lever', [{ text: 'Engineer', descriptionPlain: 'at palantir we build' }]));
+  assert.ok(boardBelongsTo('Thought Machine', 'ashby', { jobs: [{ title: 'Engineer', descriptionPlain: 'Thought Machine is building' }] }));
+});
+
+test('a board needs a UK advert, and a short-name match needs one in the registered town', () => {
+  const board = (loc) => ({ jobs: [{ id: 1, company_name: 'Monzo', title: 'Analyst', absolute_url: 'https://x.example/1', location: { name: loc }, content: 'x' }] });
+  assert.ok(boardFits('Monzo Bank Limited', 'greenhouse', 'monzo', board('London, UK'), { places: placesForBoards, town: 'London' }));
+  assert.ok(!boardFits('Monzo Bank Limited', 'greenhouse', 'monzo', board('Austin, TX'), { places: placesForBoards, town: 'London' }), 'no UK advert');
+  assert.ok(!boardFits('Monzo Bank Limited', 'greenhouse', 'monzo', board('Leeds, UK'), { places: placesForBoards, town: 'Cardiff' }), 'short name, wrong town');
+  assert.ok(boardFits('Monzo Bank Limited', 'greenhouse', 'monzo', board('Leeds, UK'), { places: placesForBoards, town: '' }), 'no town known: any UK advert');
+  assert.ok(boardFits('Monzo Bank', 'greenhouse', 'monzobank', { jobs: [{ id: 1, company_name: 'Monzo Bank', title: 'Analyst', absolute_url: 'https://x.example/1', location: { name: 'Leeds, UK' }, content: 'x' }] }, { places: placesForBoards, town: 'Cardiff' }), 'a full-name match needs no town');
+});
+
+test('boards found under the old rules are checked again, and two employers cannot share one board', async () => {
+  const boards = {
+    'https://boards-api.greenhouse.io/v1/boards/axiom/jobs?content=true': { jobs: [{ id: 1, company_name: 'Axiom', title: 'Lawyer', absolute_url: 'https://x.example/1', location: { name: 'London, UK' }, content: 'Axiom' }] },
+    'https://boards-api.greenhouse.io/v1/boards/monzo/jobs?content=true': { jobs: [{ id: 2, company_name: 'Monzo', title: 'Analyst', absolute_url: 'https://x.example/2', location: { name: 'London, UK' }, content: 'Monzo' }] },
+  };
+  const getJson = async (u) => { if (boards[u]) return boards[u]; throw new Error(`404 ${u}`); };
+  const cache = { found: {
+    'axiom global': { name: 'Axiom Global Limited', ats: 'greenhouse', slug: 'axiom', found: '2026-11-26' },
+    'axiom home care': { name: 'Axiom Home Care Limited', ats: 'greenhouse', slug: 'axiom', found: '2026-11-26' },
+    'monzo bank': { name: 'Monzo Bank Limited', ats: 'greenhouse', slug: 'monzo', found: '2026-11-26', rules: RULES },
+  }, missed: {} };
+  const res = await discoverBoards([], cache, { today: '2026-11-27', getJson, limit: 0, places: placesForBoards, townOf: () => 'London' });
+  assert.equal(res.dropped, 1);
+  assert.deepEqual(Object.keys(cache.found).sort(), ['axiom global', 'monzo bank']);
+  assert.equal(cache.found['axiom global'].rules, RULES);
+  assert.equal(cache.missed['axiom home care'], '2026-11-27');
+});
+
+test('well-known UK recruiters are tagged as agencies', () => {
+  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Robert Walters']) assert.ok(isAgency({ company: c, title: '' }), c);
+  assert.ok(!isAgency({ company: 'Monzo Bank', title: '' }));
+});
+
+test('the register keeps each employer\'s town', () => {
+  const map = sponsorMapFromCsv('Organisation Name,Town/City,County,Type & Rating,Route\n"Monzo Bank Limited",London,,Worker (A rating),Skilled Worker\n"No Town Ltd",,,Worker (A rating),Skilled Worker');
+  assert.equal(map.get('monzo bank'), 'London');
+  assert.equal(map.get('no town'), true);
 });
