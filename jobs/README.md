@@ -58,6 +58,21 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 - **Light and dark.** Settings has an Appearance option: match the phone (the default), light, or dark. The choice is saved on the phone and applied before the page paints. Native controls follow the theme, and the browser bar takes its colour from the header paint. The dark colours live in two blocks in `styles.css` that must stay identical. `sponsor-radar/scripts/design.test.mjs` checks both apps.
 - **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. It switches off when the phone asks for reduced motion. Settings has a Motion option: Match my phone (default) or Always on, which plays the motion even with Reduce Motion turned on.
 
+## Add a role by link
+
+Indeed and LinkedIn do not let apps read their adverts. The plus button in the header lets you save a role from any site yourself.
+
+1. In the Indeed or LinkedIn app, open the job, tap Share, then Copy link.
+2. In this app, tap the plus button, then Paste the copied link.
+3. A LinkedIn link fills in the job title and the employer. For other sites, type them in.
+4. Tap Save to my tracker. The role appears in your Tracker as Saved, with a Home Office sponsor check on the employer.
+
+- The check uses `sponsor-radar/data/register.bin`, a compact copy of the register that the daily job writes (about 480 KB). If it cannot be loaded, the role is saved with Sponsor unchecked.
+- On Android, the app also appears in the Share menu. On iPhone you can send a link to the app with an address like `/jobs/?add=<link>`, from a Shortcut.
+- The link and details stay on your phone. The Apply button works on saved roles as it does on any other. If the site blocks the advert reader, add a screenshot.
+
+Job Radar reads the register copy and the link helpers from Sponsor Radar, so both apps check employers the same way.
+
 ## Near me
 
 The Today and All tabs have a Near me filter. It is one control that moves with the tab you are on, and it applies to both lists. Switch it on, allow location when the phone asks, then pick a distance from 5 to 250 miles.

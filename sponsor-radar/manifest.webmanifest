@@ -5,6 +5,7 @@
   "start_url": "/sponsor-radar/",
   "scope": "/sponsor-radar/",
   "display": "standalone",
+  "share_target": { "action": "./", "method": "GET", "params": { "title": "title", "text": "text", "url": "url" } },
   "background_color": "#FFFCF9",
   "theme_color": "#FFDCA0",
   "icons": [

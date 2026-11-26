@@ -1,5 +1,5 @@
 import {
-  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage, explainFilters, familyOf, distanceMiles,
+  DEFAULT_PROFILE, collapseDuplicates, matchesProfile, scoreJob, belowSponsorThreshold, isRecruiter, isHardToSponsor, normalisePay, belowMinimumWage, explainFilters, familyOf, distanceMiles, manualJob, guessFromUrl,
 } from './scripts/lib.mjs';
 
 const STATUSES = ['Saved', 'Applied', 'Interview', 'Offer', 'Rejected', 'Not interested'];
@@ -418,6 +418,74 @@ async function load() {
 
 // ---------- first-run setup and "Your search" ----------
 
+// ---------- add a role by link ----------
+
+let register;   // the packed sponsor register: an ArrayBuffer, null when it cannot be loaded, undefined until tried
+async function loadRegister() {
+  if (register !== undefined) return register;
+  try { const r = await fetch('data/register.bin'); register = r.ok ? await r.arrayBuffer() : null; } catch { register = null; }
+  return register;
+}
+
+function openAdd(prefill = {}) {
+  $('a-url').value = prefill.url || '';
+  $('a-title').value = prefill.title || '';
+  $('a-company').value = '';
+  $('a-place').value = '';
+  $('a-note').textContent = '';
+  if (prefill.url) fillFromLink();
+  const d = $('add-dialog');
+  if (typeof d.showModal === 'function') { if (!d.open) d.showModal(); } else d.setAttribute('open', '');
+}
+
+// A LinkedIn link names the job and the employer. Other links name only the site.
+function fillFromLink() {
+  const g = guessFromUrl($('a-url').value);
+  if (!g) { $('a-note').textContent = $('a-url').value.trim() ? 'This needs to be a link that starts with https.' : ''; return; }
+  const said = [];
+  if (g.title && !$('a-title').value) { $('a-title').value = g.title; said.push('title'); }
+  if (g.company && !$('a-company').value) { $('a-company').value = g.company; said.push('employer'); }
+  $('a-note').textContent = said.length ? `The link gave the ${said.join(' and ')}. Check ${said.length > 1 ? 'them' : 'it'} against the advert.` : `${g.source} does not share the job details in its links. Add the title and employer.`;
+}
+
+$('add-role').addEventListener('click', () => openAdd());
+$('add-close').addEventListener('click', () => $('add-dialog').close());
+$('a-url').addEventListener('input', fillFromLink);
+$('a-paste').addEventListener('click', async () => {
+  try {
+    const text = (await navigator.clipboard.readText()).trim();
+    const url = /https:\/\/\S+/.exec(text)?.[0];
+    if (!url) { $('a-note').textContent = 'The clipboard holds no link. Copy the job link first.'; return; }
+    $('a-url').value = url;
+    fillFromLink();
+  } catch { $('a-note').textContent = 'The phone did not allow pasting. Press and hold in the link box instead.'; }
+});
+
+$('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const today = new Date().toISOString().slice(0, 10);
+  const job = manualJob({ url: $('a-url').value.trim(), title: $('a-title').value, company: $('a-company').value, location: $('a-place').value }, today, await loadRegister());
+  if (!/^https:\/\//.test(job.url)) { $('a-note').textContent = 'This needs to be a link that starts with https.'; return; }
+  if (!tracker[job.id]) {
+    tracker[job.id] = { status: 'Saved', job: { ...job, ...scoreJob(job, { ...DEFAULT_PROFILE, ...(profile || {}) }, thresholds) } };
+    store.set('sr.tracker', tracker);
+  }
+  $('add-dialog').close();
+  render();
+  show('tracker');
+});
+
+// A link handed to the app: ?add=<link>, or what the Android share sheet sends (url, text and title).
+function takeSharedLink() {
+  const q = new URLSearchParams(location.search);
+  const fromText = (t) => /https:\/\/\S+/.exec(t || '')?.[0];
+  const url = fromText(q.get('add')) || fromText(q.get('url')) || fromText(q.get('text'));
+  if (!url) return false;
+  history.replaceState(null, '', location.pathname);
+  openAdd({ url, title: q.get('title') || '' });
+  return true;
+}
+
 function openSetup() {
   const p = { ...DEFAULT_PROFILE, ...(profile || {}) };
   $('s-roles').value = p.roles.join(', ');
@@ -742,5 +810,5 @@ loadCvTemplate();
 if (near.on) loadPlaces().then(() => locate({ quiet: true })).then(() => render());   // refreshes the position quietly on each open
 load().then(() => {
   show('today');
-  if (!profile) openSetup();
+  if (!profile) openSetup(); else takeSharedLink();
 });

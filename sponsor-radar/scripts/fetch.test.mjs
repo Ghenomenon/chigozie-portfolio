@@ -14,7 +14,7 @@ function run() {
   const calls = join(dir, 'calls.log');
   writeFileSync(calls, '');
   const r = spawnSync(process.execPath, ['--import', join(here, 'testing', 'mock-fetch.mjs'), join(here, 'fetch-jobs.mjs')], {
-    env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' },
+    env: { ...process.env, REED_API_KEY: 'test-key', FEED_PATH: feed, REGISTER_PATH: join(dir, 'register.bin'), CALLS_PATH: calls, FETCH_DELAY_MS: '0', GITHUB_OUTPUT: '' },
     encoding: 'utf8',
   });
   const urls = readFileSync(calls, 'utf8').split('\n').filter(Boolean);

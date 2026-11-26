@@ -23,9 +23,14 @@
     <div class="blobs" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="top-row">
       <h1 class="wordmark">Job Radar</h1>
-      <button id="refresh" class="icon-btn" aria-label="Refresh the feed">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
-      </button>
+      <div class="top-actions">
+        <button id="add-role" class="icon-btn" aria-label="Add a role by link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button id="refresh" class="icon-btn" aria-label="Refresh the feed">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v5h-5"/></svg>
+        </button>
+      </div>
     </div>
     <p id="page-title" class="page-title" aria-live="polite">Today</p>
     <p id="updated" class="muted">Loading</p>
@@ -134,6 +139,36 @@
       Settings
     </button>
   </nav>
+
+  <dialog id="add-dialog" aria-labelledby="add-title">
+    <form id="add-form" class="sheet">
+      <div class="sheet-head">
+        <div>
+          <h2 id="add-title">Add a role</h2>
+          <p class="muted">Save a role from Indeed, LinkedIn or any site. It goes to your Tracker with a sponsor check.</p>
+        </div>
+        <button type="button" id="add-close" class="icon-btn dark" aria-label="Close">&times;</button>
+      </div>
+      <label class="field">Link to the advert
+        <input id="a-url" type="url" inputmode="url" placeholder="https://" required autocomplete="off">
+        <span class="hint">In the Indeed or LinkedIn app, open the job, tap Share, then Copy link.</span>
+      </label>
+      <button type="button" id="a-paste" class="btn">Paste the copied link</button>
+      <label class="field">Job title
+        <input id="a-title" type="text" required autocomplete="off">
+      </label>
+      <label class="field">Employer
+        <input id="a-company" type="text" required autocomplete="off">
+        <span class="hint">Used to check the Home Office sponsor list. Type the name as the advert gives it.</span>
+      </label>
+      <label class="field">Place (optional)
+        <input id="a-place" type="text" autocomplete="off">
+      </label>
+      <p id="a-note" class="hint" role="status"></p>
+      <button type="submit" class="btn wide primary">Save to my tracker</button>
+      <p class="muted small">The link is saved on this phone. Indeed and LinkedIn do not let apps read their adverts, so you add the title yourself.</p>
+    </form>
+  </dialog>
 
   <dialog id="apply" aria-labelledby="apply-title">
     <form method="dialog" class="sheet">

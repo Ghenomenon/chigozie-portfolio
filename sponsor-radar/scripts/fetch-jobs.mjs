@@ -6,12 +6,13 @@ import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate, idsOf, normCompany,
+  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, packRegister, parseReedDate, idsOf, normCompany,
 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'));
 const dataPath = process.env.FEED_PATH || join(root, 'data', 'jobs.json');
+const registerPath = process.env.REGISTER_PATH || join(root, 'data', 'register.bin');
 // FEED_TODAY lets tests pretend it is another day.
 const today = process.env.FEED_TODAY || new Date().toISOString().slice(0, 10);
 
@@ -125,6 +126,11 @@ async function main() {
   const known = new Map(existing.flatMap((j) => idsOf(j).map((id) => [id, j])));
 
   const sponsorMap = await loadSponsorMap();
+  if (sponsorMap) {
+    // the phone checks employers you add by link against this copy of the register
+    mkdirSync(dirname(registerPath), { recursive: true });
+    writeFileSync(registerPath, packRegister(sponsorMap.keys()));
+  }
   const raw = [];
   for (const q of cfg.queries) {
     for (const src of [fromReed, fromAdzuna]) {

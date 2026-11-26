@@ -8,6 +8,7 @@ import {
   payBasis, hourlyEquivalent, belowPayFloor, belowMinimumWage,
   expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
   placeCoords, milesBetween, distanceMiles,
+  nameHash, packRegister, registerHas, guessFromUrl, manualJob,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -502,4 +503,64 @@ test('every place in the live feed that names a town is measurable, and almost a
   const jobs = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
   const placed = jobs.filter((j) => distanceMiles(j, LONDON, places) !== null).length;
   assert.ok(placed / jobs.length > 0.9, `only ${placed} of ${jobs.length} roles could be placed`);
+});
+
+// ---------- roles added by link ----------
+
+test('the packed register finds licensed employers and nobody else', () => {
+  const bytes = packRegister(['Acme Care Ltd', 'Northern Data Services Limited', 'Zed Hospitals PLC']);
+  assert.equal(bytes.byteLength, 12);
+  assert.ok(registerHas(bytes, 'ACME CARE LIMITED'), 'the same company in a different form of its name');
+  assert.ok(registerHas(bytes, 'Northern Data Services'));
+  assert.ok(!registerHas(bytes, 'Acme Care Homes'));
+  assert.ok(!registerHas(bytes, ''));
+  assert.ok(!registerHas(null, 'Acme'));
+  assert.ok(registerHas(bytes.buffer, 'Zed Hospitals'), 'works on a plain ArrayBuffer too');
+});
+
+test('the packed register is small enough for a phone', () => {
+  const names = Array.from({ length: 121177 }, (_, i) => `Employer number ${i} Limited`);
+  const bytes = packRegister(names);
+  assert.ok(bytes.byteLength > 460000 && bytes.byteLength <= 121177 * 4, String(bytes.byteLength));
+  assert.ok(registerHas(bytes, 'Employer number 77777'));
+  assert.ok(!registerHas(bytes, 'Employer number 999999'));
+  assert.equal(nameHash('Acme Ltd'), nameHash('ACME LIMITED'));
+});
+
+test('a LinkedIn link carries the title and the employer', () => {
+  const g = guessFromUrl('https://www.linkedin.com/jobs/view/senior-data-analyst-at-acme-analytics-ltd-3912345678');
+  assert.equal(g.source, 'LinkedIn');
+  assert.equal(g.title, 'Senior Data Analyst');
+  assert.equal(g.company, 'Acme Analytics Ltd');
+  assert.equal(guessFromUrl('https://uk.linkedin.com/jobs/view/3912345678').title, undefined);
+});
+
+test('other links give a site name, and a Reed link gives a title', () => {
+  assert.equal(guessFromUrl('https://uk.indeed.com/viewjob?jk=abc123').source, 'Indeed');
+  assert.equal(guessFromUrl('https://to.indeed.com/aaa').source, 'Indeed');
+  assert.equal(guessFromUrl('https://www.reed.co.uk/jobs/care-assistant/54321').title, 'Care Assistant');
+  assert.equal(guessFromUrl('https://boards.greenhouse.io/acme/jobs/1').source, 'boards.greenhouse.io');
+});
+
+test('links that are not https, or not links, are refused', () => {
+  assert.equal(guessFromUrl('http://example.com/job'), null);
+  assert.equal(guessFromUrl('javascript:alert(1)'), null);
+  assert.equal(guessFromUrl('not a link'), null);
+});
+
+test('a role added by link gets a stable id, a sponsor check and the agency tag', () => {
+  const reg = packRegister(['Acme Care Ltd']);
+  const a = manualJob({ url: 'https://uk.indeed.com/viewjob?jk=abc', title: 'Care Assistant', company: 'Acme Care Limited', location: 'Leeds' }, '2026-11-26', reg);
+  assert.equal(a.sponsorLicence, 'licensed');
+  assert.equal(a.source, 'Indeed');
+  assert.equal(a.manual, true);
+  assert.equal(a.family, 'support-care');
+  assert.equal(a.id, manualJob({ url: 'https://uk.indeed.com/viewjob?jk=abc', title: 'x', company: 'y' }, '2026-11-27', reg).id, 'same link, same id');
+  assert.notEqual(a.id, manualJob({ url: 'https://uk.indeed.com/viewjob?jk=def', title: 'x', company: 'y' }, '2026-11-26', reg).id);
+  assert.equal(manualJob({ url: 'https://uk.indeed.com/viewjob?jk=abc', title: 'Chef', company: 'Other Cafe' }, '2026-11-26', reg).sponsorLicence, 'not-found');
+  assert.equal(manualJob({ url: 'https://uk.indeed.com/viewjob?jk=abc', title: 'Chef', company: 'Other Cafe' }, '2026-11-26', null).sponsorLicence, 'unknown', 'register not loaded');
+  assert.equal(manualJob({ url: 'https://uk.indeed.com/viewjob?jk=abc', title: 'Recruiter', company: 'Hays Recruitment' }, '2026-11-26', reg).agency, true);
+  const li = manualJob({ url: 'https://www.linkedin.com/jobs/view/support-worker-at-acme-care-ltd-3912345678' }, '2026-11-26', reg);
+  assert.equal(li.title, 'Support Worker');
+  assert.equal(li.sponsorLicence, 'licensed', 'title and employer filled from the link');
 });

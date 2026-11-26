@@ -140,6 +140,7 @@ test('places that cannot be measured give null', () => {
 
 test('almost every role in the live list can be placed', () => {
   const list = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
-  const placed = list.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
-  assert.ok(placed / list.length > 0.9, `only ${placed} of ${list.length} roles could be placed`);
+  const named = list.filter((j) => j.location && j.location !== 'UK');   // "UK" means the whole country, so it has no distance
+  const placed = named.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
+  assert.ok(placed / named.length > 0.9, `only ${placed} of ${named.length} roles with a named place could be placed`);
 });
