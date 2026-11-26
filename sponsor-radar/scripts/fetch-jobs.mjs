@@ -121,12 +121,12 @@ async function fromAdzuna(query) {
 }
 
 
-// Employer job boards (Greenhouse, Lever, Ashby). Finds boards for licensed sponsors, remembers them in
+// Employer job boards (Greenhouse, Lever, Ashby, SmartRecruiters, Workable). Finds boards for licensed sponsors, remembers them in
 // data/boards.json, and reads them every day. These adverts arrive with their full text.
 async function fromBoards(rawSoFar, sponsorMap) {
   const bc = cfg.boards;
   if (!bc?.enabled) return [];
-  const cache = (() => { try { const c = JSON.parse(readFileSync(boardsPath, 'utf8')); return { found: c.found || {}, missed: c.missed || {} }; } catch { return { found: {}, missed: {} }; } })();
+  const cache = (() => { try { const c = JSON.parse(readFileSync(boardsPath, 'utf8')); return { found: c.found || {}, missed: c.missed || {}, services: c.services || '' }; } catch { return { found: {}, missed: {}, services: '' }; } })();
   for (const s of bc.seeds || []) {
     const key = normCompany(s.name);
     if (key && !cache.found[key]) cache.found[key] = { name: s.name, ats: s.ats, slug: s.slug, found: today };
@@ -147,14 +147,15 @@ async function fromBoards(rawSoFar, sponsorMap) {
   }
   const limit = Number(process.env.BOARDS_PROBES ?? bc.probesPerRun);
   const townOf = (key) => (sponsorMap && typeof sponsorMap.get(key) === 'string' ? sponsorMap.get(key) : '');
-  const found = await discoverBoards([...names.values()], cache, { today, getJson: fetchOne, limit, recheckDays: bc.recheckMissDays, places, townOf });
-  const read = await readBoards(cache, { today, getJson: fetchOne, places });
+  const paused = new Set();   // board services that said "too many requests" this run
+  const found = await discoverBoards([...names.values()], cache, { today, getJson: fetchOne, limit, recheckDays: bc.recheckMissDays, places, townOf, paused });
+  const read = await readBoards(cache, { today, getJson: fetchOne, places, paused });
   if (read.failed) errors.push(`${read.failed} employer boards could not be read`);
 
   mkdirSync(dirname(boardsPath), { recursive: true });
   const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
-  writeFileSync(boardsPath, JSON.stringify({ updated: today, found: sortKeys(cache.found), missed: sortKeys(cache.missed) }) + '\n');
-  console.log(`Employer boards: ${read.boards} known, tried ${found.tried} employers and found ${found.found}, ${found.waiting} still to try${found.dropped ? `, ${found.dropped} dropped on a second check` : ''}. ${read.raw.length} UK adverts read${read.gone ? `, ${read.gone} boards gone` : ''}${read.failed ? `, ${read.failed} failed` : ''}`);
+  writeFileSync(boardsPath, JSON.stringify({ updated: today, services: cache.services, found: sortKeys(cache.found), missed: sortKeys(cache.missed) }) + '\n');
+  console.log(`Employer boards: ${read.boards} known, tried ${found.tried} employers and found ${found.found}, ${found.waiting} still to try${found.dropped ? `, ${found.dropped} dropped on a second check` : ''}${found.retried ? `, ${found.retried} earlier misses queued again for the new board services` : ''}${found.paused.length ? `, paused for too many requests: ${found.paused.join(', ')}` : ''}. ${read.raw.length} UK adverts read${read.gone ? `, ${read.gone} boards gone` : ''}${read.failed ? `, ${read.failed} failed` : ''}`);
   return read.raw;
 }
 

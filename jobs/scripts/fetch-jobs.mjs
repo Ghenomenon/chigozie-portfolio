@@ -88,7 +88,7 @@ async function fromAdzuna(query) {
 }
 
 
-// Adverts from employer job boards (Greenhouse, Lever, Ashby) that Sponsor Radar has found. They arrive in full.
+// Adverts from employer job boards (Greenhouse, Lever, Ashby, SmartRecruiters, Workable) that Sponsor Radar has found. They arrive in full.
 // The usual title filter then keeps the analyst roles.
 async function fromBoards() {
   let found;

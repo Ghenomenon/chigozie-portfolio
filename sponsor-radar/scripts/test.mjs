@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isUkLocation, readBoard, slugGuesses, boardBelongsTo, boardFits, discoverBoards, registerSlice, displayName, RULES } from './boards.mjs';
+import { isUkLocation, readBoard, slugGuesses, boardBelongsTo, boardFits, discoverBoards, readBoards, fetchBoard, registerSlice, displayName, RULES, ATS } from './boards.mjs';
 import {
   normCompany, sponsorshipFromText, buildJob, dropReason, mergeJobs, collapseDuplicates,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
@@ -710,4 +710,76 @@ test('the register keeps each employer\'s town', () => {
   const map = sponsorMapFromCsv('Organisation Name,Town/City,County,Type & Rating,Route\n"Monzo Bank Limited",London,,Worker (A rating),Skilled Worker\n"No Town Ltd",,,Worker (A rating),Skilled Worker');
   assert.equal(map.get('monzo bank'), 'London');
   assert.equal(map.get('no town'), true);
+});
+
+// ---------- SmartRecruiters and Workable ----------
+
+const srPosting = (id, extra = {}) => ({
+  id: String(id), name: 'Data Analyst', releasedDate: '2026-11-25T10:00:00Z',
+  company: { identifier: 'Wise', name: 'Wise' },
+  location: { city: 'London', region: '', country: 'gb', fullLocation: 'London, , United Kingdom', remote: false, hybrid: true },
+  ...extra,
+});
+
+test('a SmartRecruiters board pages through UK adverts and reads the text of recent ones', async () => {
+  const calls = [];
+  const page1 = Array.from({ length: 100 }, (_, i) => srPosting(i));
+  const page2 = [srPosting(100, { releasedDate: '2026-01-01T00:00:00Z' })];
+  const getJson = async (u) => {
+    calls.push(u);
+    if (u.includes('offset=0')) return { totalFound: 101, content: page1 };
+    if (u.includes('offset=100')) return { totalFound: 101, content: page2 };
+    if (/\/postings\/\d+$/.test(u)) return { postingUrl: `https://jobs.smartrecruiters.com/Wise/${u.split('/').pop()}-data-analyst`, jobAd: { sections: { jobDescription: { text: '<p>Build reports. Visa sponsorship available.</p>' } } } };
+    throw new Error(`404 ${u}`);
+  };
+  const data = await fetchBoard('smartrecruiters', 'wise', getJson, { today: '2026-11-26', detailCap: 3 });
+  assert.equal(data.content.length, 101, 'both pages');
+  assert.equal(calls.filter((u) => /\/postings\/\d+$/.test(u)).length, 3, 'text read for recent adverts only, up to the cap');
+  const out = readBoard('smartrecruiters', 'wise', data, 'Wise Payments Limited', { places: placesForBoards, today: '2026-11-26' });
+  assert.equal(out.length, 101);
+  assert.equal(out[0].location, 'London, United Kingdom', 'the empty region is tidied away');
+  assert.match(out[0].url, /^https:\/\/jobs\.smartrecruiters\.com\/Wise\/0-data-analyst$/);
+  assert.match(out[0].description, /Visa sponsorship available\. Hybrid\.$/);
+  assert.equal(out[100].url, 'https://jobs.smartrecruiters.com/Wise/100', 'an advert without its text still gets a link');
+  assert.ok(boardBelongsTo('Wise Payments Limited', 'smartrecruiters', data), 'SmartRecruiters names the company');
+  assert.ok(!boardBelongsTo('Wise Care Ltd', 'smartrecruiters', data));
+});
+
+test('a Workable board gives UK adverts and names the company', () => {
+  const data = { name: 'Acme Analytics', jobs: [
+    { title: 'Data Analyst', shortcode: 'AB12', url: 'https://apply.workable.com/j/AB12', city: 'Leeds', state: 'England', country: 'United Kingdom', published_on: '2026-11-24', telecommuting: false, description: '<p>SQL and Power BI.</p>', requirements: '<p>Right to work in the UK.</p>', locations: [{ city: 'Leeds', countryCode: 'GB', country: 'United Kingdom' }] },
+    { title: 'Data Analyst', shortcode: 'CD34', url: 'https://apply.workable.com/j/CD34', city: 'Austin', state: 'Texas', country: 'United States', published_on: '2026-11-24', locations: [{ city: 'Austin', countryCode: 'US' }] },
+    { title: 'Remote Analyst', shortcode: 'EF56', url: 'https://apply.workable.com/j/EF56', published_on: '2026-11-24', telecommuting: true, locations: [{ countryCode: 'GB', country: 'United Kingdom' }] },
+  ] };
+  const out = readBoard('workable', 'acme', data, 'Acme Analytics Ltd', { places: placesForBoards, today: '2026-11-26' });
+  assert.deepEqual(out.map((x) => x.id), ['workable-acme-AB12', 'workable-acme-EF56']);
+  assert.equal(out[0].location, 'Leeds, England, United Kingdom');
+  assert.match(out[0].description, /Power BI\.\nRight to work/);
+  assert.match(out[1].description, /Remote\.$/);
+  assert.ok(boardBelongsTo('Acme Analytics Ltd', 'workable', data));
+  assert.ok(!boardBelongsTo('Acme Care Homes', 'workable', data));
+});
+
+test('a board service that answers too many requests is paused for the rest of the run', async () => {
+  const calls = [];
+  const getJson = async (u) => { calls.push(u); if (u.includes('workable')) throw new Error('429 https://apply.workable.com'); throw new Error(`404 ${u}`); };
+  const paused = new Set();
+  const cache = { found: {}, missed: {}, services: ATS.join(',') };
+  await discoverBoards(['Alpha Labs', 'Beta Labs', 'Gamma Labs'], cache, { today: '2026-11-26', getJson, limit: 3, concurrency: 1, places: placesForBoards, paused });
+  assert.ok(paused.has('workable'));
+  assert.equal(calls.filter((u) => u.includes('workable')).length, 1, 'asked once, then left alone');
+  const read = await readBoards({ found: { x: { name: 'X', ats: 'workable', slug: 'x' } }, missed: {} }, { today: '2026-11-26', getJson, places: placesForBoards, paused });
+  assert.equal(read.failed, 1);
+  assert.equal(calls.filter((u) => u.includes('workable')).length, 1, 'known Workable boards wait for the next run');
+});
+
+test('when a board service is added, earlier misses are tried again', async () => {
+  const getJson = async (u) => { throw new Error(`404 ${u}`); };
+  const cache = { found: {}, missed: { 'old miss': '2026-11-26' }, services: 'greenhouse,lever,ashby' };
+  const res = await discoverBoards([], cache, { today: '2026-11-26', getJson, limit: 0, places: placesForBoards });
+  assert.equal(res.retried, 1);
+  assert.deepEqual(cache.missed, {});
+  assert.equal(cache.services, ATS.join(','));
+  const again = await discoverBoards([], cache, { today: '2026-11-26', getJson, limit: 0, places: placesForBoards });
+  assert.equal(again.retried, 0, 'only once');
 });

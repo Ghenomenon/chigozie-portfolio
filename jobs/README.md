@@ -64,7 +64,7 @@ Indeed and LinkedIn have no open feed, so a scheduled Claude task collects their
 
 ## Employer job boards
 
-The daily job also reads the employer job boards that Sponsor Radar has found (Greenhouse, Lever and Ashby). It keeps the UK adverts, and your usual title filter then keeps the analyst roles. Boards come from `sponsor-radar/data/boards.json`. See the Sponsor Radar README for how they are found.
+The daily job also reads the employer job boards that Sponsor Radar has found (Greenhouse, Lever, Ashby, SmartRecruiters and Workable). It keeps the UK adverts, and your usual title filter then keeps the analyst roles. Boards come from `sponsor-radar/data/boards.json`. See the Sponsor Radar README for how they are found.
 
 ## Add a role by link
 
