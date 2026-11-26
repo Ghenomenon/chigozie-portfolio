@@ -167,6 +167,7 @@ export function buildJob(raw, feedCfg, sponsorMap) {
     url: raw.url,
     source: raw.source,
     posted: raw.posted,
+    expires: raw.expires || null,
     salaryMin: raw.salaryMin || null,
     salaryMax: raw.salaryMax || null,
     workMode: detectWorkMode(raw.title, raw.location, raw.description || ''),
@@ -186,6 +187,7 @@ export function dropReason(job, feedCfg, today) {
   if (!feedCfg.titleMustMatch.some((w) => t.includes(w))) return 'title';
   const c = job.company.toLowerCase();
   if (feedCfg.companyExclude.some((w) => c.includes(w))) return 'company';
+  if (job.expires && job.expires < today) return 'expired';
   const ageDays = (Date.parse(today) - Date.parse(job.posted)) / 86400000;
   if (ageDays > feedCfg.maxAgeDays) return 'too-old';
   return null;
@@ -207,6 +209,8 @@ export function collapseDuplicates(jobs) {
     g.ids = [...new Set([...g.ids, ...ids])];
     if (j.posted > g.posted) { g.posted = j.posted; g.url = j.url; g.id = j.id; }
     g.firstSeen = earlier(g.firstSeen, j.firstSeen);
+    if (j.lastSeen && (!g.lastSeen || j.lastSeen > g.lastSeen)) g.lastSeen = j.lastSeen;
+    if (j.expires && (!g.expires || j.expires > g.expires)) g.expires = j.expires;
     // The advert read in full gives the text and the sponsorship reading for the whole entry.
     if (j.detail && !g.detail) { g.detail = true; g.summary = j.summary; g.sponsorship = j.sponsorship; }
   }
@@ -220,16 +224,33 @@ export function collapseDuplicates(jobs) {
 // Every advert id an entry stands for.
 export const idsOf = (job) => (job.ids && job.ids.length ? job.ids : [job.id]);
 
+const daysBetween = (laterIso, earlierIso) => (Date.parse(laterIso) - Date.parse(earlierIso)) / 86400000;
+
+// Is this entry still worth showing? An advert past its closing date is closed. One that Reed has stopped
+// returning is probably closed too, or has fallen out of the pages we read. `lastSeen` is the last day a
+// search returned it. Older entries have none, so they count from the day they were first seen.
+export function isStale(job, today, staleAfterDays = Infinity) {
+  if (job.expires && job.expires < today) return true;
+  const seen = job.lastSeen || job.firstSeen || job.posted;
+  return daysBetween(today, seen) > staleAfterDays;
+}
+
 // Merge today's jobs into the stored list. An advert already seen under any stored entry keeps that
-// entry's first-seen date, so "new" means new to the feed and not new to this run.
-export function mergeJobs(existing, fresh, today, keepDays) {
+// entry's first-seen date, so "new" means new to the feed and not new to this run. Entries that are
+// closed or have not been returned for `staleAfterDays` days are dropped.
+export function mergeJobs(existing, fresh, today, keepDays, staleAfterDays = Infinity) {
   const firstSeenById = new Map();
   for (const e of existing) for (const id of idsOf(e)) firstSeenById.set(id, e.firstSeen);
   const byId = new Map(existing.map((j) => [j.id, j]));
-  for (const j of fresh) byId.set(j.id, { ...j, firstSeen: firstSeenById.get(j.id) || today });
+  for (const j of fresh) byId.set(j.id, { ...j, firstSeen: firstSeenById.get(j.id) || today, lastSeen: today });
   const cutoff = Date.parse(today) - keepDays * 86400000;
-  const kept = [...byId.values()].filter((j) => Date.parse(j.posted) >= cutoff).map(normalisePay);
-  return collapseDuplicates(kept).sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
+  const kept = [...byId.values()]
+    .filter((j) => Date.parse(j.posted) >= cutoff)
+    .map(normalisePay);
+  // Fold first, so one returned copy keeps a whole entry alive, then drop what is stale.
+  return collapseDuplicates(kept)
+    .filter((j) => !isStale(j, today, staleAfterDays))
+    .sort((a, b) => (b.posted > a.posted ? 1 : b.posted < a.posted ? -1 : 0));
 }
 
 // ---------- the personal profile (lives on each user's phone) ----------

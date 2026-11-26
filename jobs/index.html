@@ -11,6 +11,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Job Radar">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="color-scheme" content="light dark">
+  <script>try{var t=localStorage.getItem("jr.theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" href="icons/icon-192.png">
@@ -47,6 +49,15 @@
     </section>
     <section id="view-tracker" class="view" hidden></section>
     <section id="view-settings" class="view" hidden>
+      <div class="card">
+        <h2>Appearance</h2>
+        <p class="muted">Choose light or dark, or follow your phone.</p>
+        <div class="togs" role="radiogroup" aria-label="Appearance">
+          <label class="tog"><input type="radio" name="theme" value="auto" checked><span>Match my phone</span></label>
+          <label class="tog"><input type="radio" name="theme" value="light"><span>Light</span></label>
+          <label class="tog"><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+        </div>
+      </div>
       <div class="card">
         <h2>Alerts</h2>
         <p class="muted">The app shows a number on its icon when new roles arrive. For a morning notification, install the free ntfy app and subscribe to your private topic. See the setup notes.</p>

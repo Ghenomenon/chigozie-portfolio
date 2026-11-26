@@ -6,7 +6,7 @@ import {
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, formatLocation,
   DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor, normalisePay,
   payBasis, hourlyEquivalent, belowPayFloor, belowMinimumWage,
-  expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf,
+  expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -401,4 +401,58 @@ test('folding keeps the full text when only one copy of an advert was read', () 
   }
   const [still] = collapseDuplicates([unread, { ...unread, id: 'u3', location: 'Hull' }]);
   assert.ok(!still.detail, 'two unread copies stay unread');
+});
+
+test('an entry that stops being returned is kept for a few days, then dropped', () => {
+  const a = mk({ id: 'a', title: 'Data Analyst' });
+  const b = mk({ id: 'b', title: 'Business Analyst' });
+  const day1 = mergeJobs([], [a, b], '2026-11-20', 45, 3);
+  assert.equal(day1.length, 2);
+  assert.ok(day1.every((j) => j.lastSeen === '2026-11-20'));
+  // b is no longer returned
+  const day3 = mergeJobs(day1, [a], '2026-11-22', 45, 3);
+  assert.equal(day3.length, 2, 'two days unseen is still within the 3 day grace');
+  assert.equal(day3.find((j) => j.id === 'a').lastSeen, '2026-11-22');
+  assert.equal(day3.find((j) => j.id === 'b').lastSeen, '2026-11-20');
+  const day4 = mergeJobs(day3, [a], '2026-11-23', 45, 3);
+  assert.equal(day4.length, 2, 'three days unseen is the last day it stays');
+  const day5 = mergeJobs(day4, [a], '2026-11-24', 45, 3);
+  assert.deepEqual(day5.map((j) => j.id), ['a'], 'four days unseen is dropped');
+  const back = mergeJobs(day4, [a, b], '2026-11-23', 45, 3);
+  assert.equal(back.length, 2, 'an entry that comes back is refreshed');
+});
+
+test('one returned copy keeps a folded entry alive', () => {
+  const a = mk({ id: 'c1', company: 'Acme', title: 'Care Assistant', location: 'Leeds' });
+  const b = mk({ id: 'c2', company: 'Acme', title: 'Care Assistant', location: 'York' });
+  const day1 = mergeJobs([], [a, b], '2026-11-20', 45, 3);
+  const later = mergeJobs(day1, [b], '2026-11-30', 45, 3);
+  assert.equal(later.length, 1, 'only copy c2 is returned, and the entry survives');
+  assert.equal(later[0].lastSeen, '2026-11-30');
+});
+
+test('entries from before last-seen existed count from the day they were first seen', () => {
+  const old = { ...mk({ id: 'o', title: 'Data Analyst' }), firstSeen: '2026-11-20' };
+  delete old.lastSeen;
+  assert.ok(!isStale(old, '2026-11-23', 3));
+  assert.ok(isStale(old, '2026-11-24', 3));
+  assert.equal(mergeJobs([old], [], '2026-11-24', 45, 3).length, 0);
+});
+
+test('a closed advert is dropped at once, by closing date', () => {
+  const closed = mk({ id: 'x', title: 'Data Analyst', expires: '2026-11-24' });
+  assert.equal(dropReason(closed, feed, '2026-11-25'), 'expired');
+  const open = mk({ id: 'y', title: 'Data Analyst', expires: '2026-11-25' });
+  assert.equal(dropReason(open, feed, '2026-11-25'), null, 'closing today is still open');
+  assert.equal(dropReason(mk({ id: 'z', title: 'Data Analyst' }), feed, '2026-11-25'), null, 'no closing date is fine');
+  const stored = { ...mk({ id: 's', title: 'Data Analyst', expires: '2026-11-24' }), lastSeen: '2026-11-24' };
+  assert.equal(mergeJobs([stored], [], '2026-11-25', 45, 3).length, 0, 'a stored entry past its closing date goes too');
+});
+
+test('folding keeps the latest last-seen and closing dates', () => {
+  const a = { ...mk({ id: 'f1', company: 'Acme', title: 'Chef', location: 'Leeds', expires: '2026-12-01' }), lastSeen: '2026-11-20' };
+  const b = { ...mk({ id: 'f2', company: 'Acme', title: 'Chef', location: 'York', expires: '2026-12-10' }), lastSeen: '2026-11-22' };
+  const [one] = collapseDuplicates([a, b]);
+  assert.equal(one.lastSeen, '2026-11-22');
+  assert.equal(one.expires, '2026-12-10');
 });

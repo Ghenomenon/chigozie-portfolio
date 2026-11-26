@@ -8,8 +8,11 @@ const reedDate = `${String(now.getUTCDate()).padStart(2, '0')}/${String(now.getU
 
 // How many adverts each fake search holds, so the paging can be checked.
 const HOLDINGS = { 'support worker': 250, 'care assistant': 100000, chef: 150 };
+// MOCK_NO_CHEF makes the chef search return nothing, as if those adverts had closed.
+if (process.env.MOCK_NO_CHEF) HOLDINGS.chef = 0;
 // MOCK_NEW adds 20 adverts from new employers, to test that new adverts are read before the backlog.
 if (process.env.MOCK_NEW) HOLDINGS['kitchen assistant'] = 20;
+const reedOn = (offsetDays) => { const d = new Date(Date.now() + offsetDays * 86400000); return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`; };
 const titleFor = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
 const csv = ['Organisation Name,Town/City,County,Type & Rating,Route']
@@ -41,6 +44,8 @@ globalThis.fetch = async (input) => {
         locationName: `Town ${idx}`,
         jobUrl: `https://www.reed.co.uk/jobs/${keyword.replace(/\W/g, '')}/${idx}`,
         date: reedDate,
+        // MOCK_EXPIRED makes every care assistant advert closed yesterday. The rest close in two weeks.
+        expirationDate: process.env.MOCK_EXPIRED && keyword === 'care assistant' ? reedOn(-1) : reedOn(14),
         minimumSalary: 13.5,
         maximumSalary: 13.5,
         jobDescription: 'Short snippet.',

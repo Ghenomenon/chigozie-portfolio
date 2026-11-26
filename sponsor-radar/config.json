@@ -76,6 +76,7 @@
   ],
   "maxAgeDays": 14,
   "keepDays": 45,
+  "staleAfterDays": 3,
   "pagesPerQuery": 3,
   "maxDetailFetches": 1200,
   "sponsorRefusal": [

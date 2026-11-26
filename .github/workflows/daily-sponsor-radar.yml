@@ -24,7 +24,7 @@ jobs:
           node-version: 22
 
       - name: Run tests
-        run: node --test sponsor-radar/scripts/test.mjs sponsor-radar/scripts/fetch.test.mjs
+        run: node --test sponsor-radar/scripts/test.mjs sponsor-radar/scripts/fetch.test.mjs sponsor-radar/scripts/design.test.mjs
 
       - name: Fetch jobs
         id: fetch
