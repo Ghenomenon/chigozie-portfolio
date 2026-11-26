@@ -8,6 +8,8 @@ const reedDate = `${String(now.getUTCDate()).padStart(2, '0')}/${String(now.getU
 
 // How many adverts each fake search holds, so the paging can be checked.
 const HOLDINGS = { 'support worker': 250, 'care assistant': 100000, chef: 150 };
+// MOCK_NEW adds 20 adverts from new employers, to test that new adverts are read before the backlog.
+if (process.env.MOCK_NEW) HOLDINGS['kitchen assistant'] = 20;
 const titleFor = (k) => k.replace(/\b\w/g, (c) => c.toUpperCase());
 
 const csv = ['Organisation Name,Town/City,County,Type & Rating,Route']
@@ -34,7 +36,7 @@ globalThis.fetch = async (input) => {
       const idx = skip + i;
       return {
         jobId: `${keyword.replace(/\W/g, '')}-${idx}`,
-        employerName: `Employer ${idx % 40}`,
+        employerName: keyword === 'kitchen assistant' ? `Newco ${idx}` : `Employer ${idx % 40}`,
         jobTitle: titleFor(keyword),
         locationName: `Town ${idx}`,
         jobUrl: `https://www.reed.co.uk/jobs/${keyword.replace(/\W/g, '')}/${idx}`,
@@ -47,6 +49,7 @@ globalThis.fetch = async (input) => {
     return json({ results, totalResults: held });
   }
   if (url.includes('reed.co.uk/api/1.0/jobs/')) {
+    if (process.env.MOCK_DETAIL_FAIL) return json({ error: 'down' }, 500);
     return json({ jobDescription: '<p>Full advert text. Visa sponsorship available for the right candidate.</p>' });
   }
   return json({ results: [] });

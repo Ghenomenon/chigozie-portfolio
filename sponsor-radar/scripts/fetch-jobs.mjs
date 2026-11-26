@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
-  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate, idsOf,
+  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate, idsOf, normCompany,
 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -144,27 +144,59 @@ async function main() {
   });
 
   // The feed only drops what no user would want. Pay, region and seniority are decided on each phone.
-  // New Reed adverts get a second call for the full text so sponsorship wording is read in full.
   const stats = {};
-  const kept = [];
-  let detailCalls = 0;
+  const candidates = [];
   for (const r of unique) {
-    const probe = buildJob(r, cfg, sponsorMap);
-    let reason = dropReason(probe, cfg, today);
-    if (!reason && r._detailUrl && !known.has(r.id) && detailCalls < cfg.maxDetailFetches) {
-      detailCalls++;
-      try {
-        const d = await getJson(r._detailUrl, r._detailAuth);
-        r.description = d.jobDescription || r.description;
-        await sleep(150);
-      } catch { /* keep the snippet */ }
-    }
-    const job = reason ? probe : buildJob(r, cfg, sponsorMap);
-    // Adverts we already read in full keep their saved text and sponsorship reading.
-    const old = known.get(r.id);
-    if (old && old.summary && old.summary.length > job.summary.length) { job.summary = old.summary; job.sponsorship = old.sponsorship; }
+    const job = buildJob(r, cfg, sponsorMap);
+    const reason = dropReason(job, cfg, today);
     if (reason) { stats[reason] = (stats[reason] || 0) + 1; continue; }
-    kept.push(job);
+    candidates.push({ r, job });
+  }
+
+  // Full text. Reed's search gives only a short snippet, so sponsorship wording is read from a second
+  // call per advert. Copies of one advert (same employer and title) share one read. An entry is marked
+  // `detail` once its full text has been read, so a run that hits the cap does not lose the rest: new
+  // adverts are read first, then the unread backlog, and a failed read is retried on the next run.
+  const groupKey = (j) => `${normCompany(j.company)}|${j.title.toLowerCase().replace(/\s+/g, ' ').trim()}`;
+  const storedByKey = new Map(existing.map((e) => [groupKey(e), e]));
+  const groups = new Map();
+  for (const c of candidates) {
+    const k = groupKey(c.job);
+    let g = groups.get(k);
+    if (!g) { g = { members: [], stored: storedByKey.get(k) || null, readNow: false }; groups.set(k, g); }
+    g.members.push(c);
+  }
+  const cap = Number(process.env.MAX_DETAIL_FETCHES ?? cfg.maxDetailFetches);
+  const newestFirst = (a, b) => (b.job.posted > a.job.posted ? 1 : b.job.posted < a.job.posted ? -1 : 0);
+  const needsRead = [...groups.values()]
+    .filter((g) => !g.stored?.detail && g.members.some((m) => m.r._detailUrl))
+    .map((g) => ({ g, rep: [...g.members].filter((m) => m.r._detailUrl).sort(newestFirst)[0] }));
+  const isNewGroup = (x) => !x.g.stored && !x.g.members.some((m) => known.has(m.r.id));
+  needsRead.sort((a, b) => (isNewGroup(b) - isNewGroup(a)) || newestFirst(a.rep, b.rep));
+
+  let detailCalls = 0, readNew = 0, readBacklog = 0, failed = 0;
+  for (const x of needsRead) {
+    if (detailCalls >= cap) break;
+    detailCalls++;
+    try {
+      const d = await getJson(x.rep.r._detailUrl, x.rep.r._detailAuth);
+      if (!d.jobDescription) throw new Error('empty advert');
+      for (const m of x.g.members) m.r.description = d.jobDescription;
+      x.g.readNow = true;
+      if (isNewGroup(x)) readNew++; else readBacklog++;
+    } catch { failed++; }                            // left unread, so the next run tries again
+    await sleep(150);
+  }
+  const unreadLeft = needsRead.length - readNew - readBacklog;
+
+  const kept = [];
+  for (const g of groups.values()) {
+    for (const m of g.members) {
+      let job = m.job;
+      if (g.readNow) { job = buildJob(m.r, cfg, sponsorMap); job.detail = true; }
+      else if (g.stored?.detail) { job.summary = g.stored.summary; job.sponsorship = g.stored.sponsorship; job.detail = true; }
+      kept.push(job);
+    }
   }
 
   const merged = mergeJobs(existing, kept, today, cfg.keepDays);
@@ -177,7 +209,8 @@ async function main() {
     jobs: merged,
   }) + '\n');
 
-  console.log(`Fetched ${raw.length}, unique ${unique.length}, kept ${kept.length}, detail calls ${detailCalls}, new today ${newToday}, stored ${merged.length}`);
+  console.log(`Fetched ${raw.length}, unique ${unique.length}, kept ${kept.length}, new today ${newToday}, stored ${merged.length}`);
+  console.log(`Full text: ${detailCalls} reads (${readNew} new, ${readBacklog} backlog, ${failed} failed), ${unreadLeft} still unread, ${merged.filter((j) => j.detail).length} of ${merged.length} entries read in full`);
   console.log('Dropped:', JSON.stringify(stats));
   if (errors.length) console.warn('Errors:\n' + errors.join('\n'));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `new_count=${newToday}\n`);

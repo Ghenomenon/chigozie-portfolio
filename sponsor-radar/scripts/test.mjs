@@ -388,3 +388,17 @@ test('a genuinely new role is marked new', () => {
   assert.equal(day2.find((j) => j.title === 'Business Analyst').firstSeen, '2026-11-25');
   assert.equal(day2.find((j) => j.title === 'Data Analyst').firstSeen, '2026-11-24');
 });
+
+test('folding keeps the full text when only one copy of an advert was read', () => {
+  const unread = { ...mk({ id: 'u1', company: 'Acme', title: 'Care Assistant', location: 'Leeds' }), summary: 'Short snippet', sponsorship: 'unknown', detail: false };
+  const read = { ...mk({ id: 'u2', company: 'Acme', title: 'Care Assistant', location: 'York' }), summary: 'The full advert text, visa sponsorship available.', sponsorship: 'offered', detail: true };
+  for (const order of [[unread, read], [read, unread]]) {
+    const [one] = collapseDuplicates(order);
+    assert.equal(one.detail, true);
+    assert.equal(one.sponsorship, 'offered');
+    assert.match(one.summary, /full advert text/);
+    assert.equal(one.locations.length, 2);
+  }
+  const [still] = collapseDuplicates([unread, { ...unread, id: 'u3', location: 'Hull' }]);
+  assert.ok(!still.detail, 'two unread copies stay unread');
+});

@@ -207,6 +207,8 @@ export function collapseDuplicates(jobs) {
     g.ids = [...new Set([...g.ids, ...ids])];
     if (j.posted > g.posted) { g.posted = j.posted; g.url = j.url; g.id = j.id; }
     g.firstSeen = earlier(g.firstSeen, j.firstSeen);
+    // The advert read in full gives the text and the sponsorship reading for the whole entry.
+    if (j.detail && !g.detail) { g.detail = true; g.summary = j.summary; g.sponsorship = j.sponsorship; }
   }
   return [...groups.values()].map((g) => ({
     ...g,
