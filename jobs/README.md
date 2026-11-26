@@ -60,7 +60,7 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 
 ## Near me
 
-The All tab has a Near me filter. Switch it on, allow location when the phone asks, then pick a distance from 5 to 250 miles.
+The Today and All tabs have a Near me filter. It is one control that moves with the tab you are on, and it applies to both lists. Switch it on, allow location when the phone asks, then pick a distance from 5 to 250 miles.
 
 - The list shows roles within that distance, nearest first. Each card shows how far away it is. Remote roles stay in and follow the nearby ones.
 - Distance is a straight line from you to the place in the advert (a town, or the district of its postcode). Roads are longer, so treat it as good to a few miles.

@@ -32,16 +32,10 @@
   </header>
 
   <main>
-    <section id="view-today" class="view"></section>
-    <section id="view-all" class="view" hidden>
-      <div id="fchips" class="fchips" role="group" aria-label="Kind of work"></div>
-      <div class="filters">
-        <input id="q" type="search" placeholder="Search title or company" aria-label="Search">
-        <div class="togs">
-          <label class="tog"><input type="checkbox" id="f-remote"><span>Remote or hybrid</span></label>
-          <label class="tog"><input type="checkbox" id="f-pay"><span>Pay stated</span></label>
-          <label class="tog"><input type="checkbox" id="f-near"><span>Near me</span></label>
-        </div>
+    <section id="view-today" class="view">
+      <div id="today-slot">
+      <div id="near-box" class="near-box">
+          <div class="togs"><label class="tog"><input type="checkbox" id="f-near"><span>Near me</span></label></div>
         <div id="near-row" class="near" hidden>
           <label>Within
             <select id="f-miles" aria-label="Distance in miles">
@@ -52,6 +46,19 @@
           <button type="button" id="near-update" class="btn">Update my location</button>
           <p id="near-note" class="hint" role="status"></p>
         </div>
+        </div>
+      </div>
+      <div id="today-list"></div>
+    </section>
+    <section id="view-all" class="view" hidden>
+      <div id="fchips" class="fchips" role="group" aria-label="Kind of work"></div>
+      <div class="filters">
+        <input id="q" type="search" placeholder="Search title or company" aria-label="Search">
+        <div class="togs">
+          <label class="tog"><input type="checkbox" id="f-remote"><span>Remote or hybrid</span></label>
+          <label class="tog"><input type="checkbox" id="f-pay"><span>Pay stated</span></label>
+        </div>
+        <div id="all-slot"></div>
         <label class="range">Min fit <output id="f-score-out">0</output>
           <input type="range" id="f-score" min="0" max="5" step="0.5" value="0">
         </label>

@@ -163,10 +163,12 @@ function fill(container, items, emptyText, opts = {}) {
 }
 
 function renderToday() {
-  const c = $('view-today');
+  const c = $('today-list');
   c.replaceChildren();
-  const items = todayJobs();
-  c.append(el('h3', { text: `New today (${items.length})` }));
+  const found = applyNear(todayJobs());
+  const items = found.list;
+  if (tab === 'today') renderNearNote(found);
+  c.append(el('h3', { text: `New today (${items.length})${nearActive() ? ', nearest first' : ''}` }));
   const holder = el('div');
   fill(holder, items, profile
     ? 'Nothing new that matches your search. Check back after the morning update, or widen your search in Settings.'
@@ -203,6 +205,21 @@ const distanceOf = (j) => {
   const d = distanceMiles(j, where, places);
   return d === null ? Infinity : d;
 };
+
+// Applies Near me to a list: drops what is too far or cannot be placed, then sorts nearest first.
+function applyNear(list) {
+  if (!nearActive()) return { list, tooFar: 0, unplaced: 0 };
+  let tooFar = 0, unplaced = 0;
+  const kept = list.filter((j) => {
+    if (j.workMode === 'remote') return true;
+    const d = distanceMiles(j, where, places);
+    if (d === null) { unplaced += 1; return false; }
+    if (d > near.miles) { tooFar += 1; return false; }
+    return true;
+  });
+  const sorted = kept.map((j, i) => [j, i]).sort((a, b) => distanceOf(a[0]) - distanceOf(b[0]) || a[1] - b[1]).map((x) => x[0]);
+  return { list: sorted, tooFar, unplaced };
+}
 
 function renderNearNote(counts = {}) {
   $('near-row').hidden = !near.on && !nearNote;           // a refusal stays visible even though the filter is off
@@ -254,32 +271,26 @@ async function setNear(on) {
     if (!(await locate()) && !where) { near.on = false; store.set('sr.near', near); renderNearNote(); return; }
   } else nearNote = '';
   replay();
-  renderAll();
+  render();
 }
 
 function renderAll() {
   const q = $('q').value.trim().toLowerCase();
   const minScore = Number($('f-score').value);
   $('f-score-out').textContent = minScore.toFixed(1);
-  const gate = nearActive();
-  let tooFar = 0, unplaced = 0;
   let items = view.filter((j) => {
     if (isHidden(j)) return false;
-    if (gate && !(j.workMode === 'remote' && profileOf().includeRemote)) {
-      const d = distanceMiles(j, where, places);
-      if (d === null) { unplaced += 1; return false; }
-      if (d > near.miles) { tooFar += 1; return false; }
-    }
     if (q && !(`${j.title} ${j.company}`.toLowerCase().includes(q))) return false;
     if ($('f-remote').checked && j.workMode === 'onsite') return false;
     if ($('f-pay').checked && !(j.salaryMin || j.salaryMax)) return false;
     if (fam !== 'all' && familyOf(j) !== fam) return false;
     return j.score >= minScore;
   });
-  if (gate) items = items.map((j, i) => [j, i]).sort((a, b) => distanceOf(a[0]) - distanceOf(b[0]) || a[1] - b[1]).map((x) => x[0]);
   renderFchips();
-  renderNearNote({ tooFar, unplaced });
-  $('all-count').textContent = `${items.length} of ${view.length} matching roles${gate ? ', nearest first' : ''}`;
+  const near2 = applyNear(items);
+  items = near2.list;
+  if (tab !== 'today') renderNearNote(near2);
+  $('all-count').textContent = `${items.length} of ${view.length} matching roles${nearActive() ? ', nearest first' : ''}`;
   renderWhy();
   fill($('list-all'), items, 'No roles match these filters.');
 }
@@ -373,6 +384,8 @@ function show(name) {
     v.classList.remove('fade-in');
     if (on) { void v.offsetWidth; v.classList.add('fade-in'); }
   }
+  const slot = name === 'today' ? $('today-slot') : name === 'all' ? $('all-slot') : null;
+  if (slot && $('near-box').parentElement !== slot) slot.append($('near-box'));   // one Near me control, shown in whichever tab is open
   $('page-title').textContent = PAGE_TITLES[name] || name;
   if (name === 'today') {
     todayJobs().forEach((j) => seen.add(j.id));
@@ -712,8 +725,8 @@ document.querySelectorAll('input[name="motion"]').forEach((r) => {
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
 ['q', 'f-remote', 'f-pay', 'f-score'].forEach((id) => $(id).addEventListener('input', renderAll));
 $('f-near').addEventListener('change', (e) => setNear(e.target.checked));
-$('f-miles').addEventListener('change', (e) => { near = { ...near, miles: Number(e.target.value) }; store.set('sr.near', near); replay(); renderAll(); });
-$('near-update').addEventListener('click', async () => { await locate(); replay(); renderAll(); });
+$('f-miles').addEventListener('change', (e) => { near = { ...near, miles: Number(e.target.value) }; store.set('sr.near', near); replay(); render(); });
+$('near-update').addEventListener('click', async () => { await locate(); replay(); render(); });
 $('refresh').addEventListener('click', load);
 $('export').addEventListener('click', exportTracker);
 $('import').addEventListener('change', (e) => e.target.files[0] && importTracker(e.target.files[0]));
@@ -726,7 +739,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) load
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 loadCvTemplate();
-if (near.on) loadPlaces().then(() => locate({ quiet: true })).then(() => renderAll());   // refreshes the position quietly on each open
+if (near.on) loadPlaces().then(() => locate({ quiet: true })).then(() => render());   // refreshes the position quietly on each open
 load().then(() => {
   show('today');
   if (!profile) openSetup();
