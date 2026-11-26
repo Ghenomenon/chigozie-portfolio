@@ -500,10 +500,13 @@ test('the distance to a folded advert is the nearest of its places', () => {
   assert.equal(distanceMiles(job, null, places), null);
 });
 
-test('every place in the live feed that names a town is measurable, and almost all roles are', () => {
-  const jobs = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
-  const placed = jobs.filter((j) => distanceMiles(j, LONDON, places) !== null).length;
-  assert.ok(placed / jobs.length > 0.9, `only ${placed} of ${jobs.length} roles could be placed`);
+test('the place formats Reed and Adzuna use can be measured, and country-wide ones cannot', () => {
+  // A fixed sample, so a change in the live feed can never fail the daily job.
+  const named = ['London', 'Manchester', 'Milton Keynes', 'Near LE67', 'Near SW11', 'Leeds, West Yorkshire', 'Birmingham, West Midlands', 'South West London', 'Hampshire',
+    'Cardiff', 'Belfast', 'Greater Manchester', 'Stratford-upon-Avon', 'Bicester, Oxfordshire', 'Warwick', 'Tamworth, Staffordshire', 'Exeter, Devon', 'Preston, Lancashire', 'Leicester', 'Swindon, Wiltshire'];
+  const placed = named.filter((t) => distanceMiles({ locations: [t] }, LONDON, places) !== null).length;
+  assert.equal(placed, named.length, 'every named place in the sample is measured');
+  for (const t of ['UK', 'United Kingdom', 'Dublin', 'County Galway']) assert.equal(distanceMiles({ locations: [t] }, LONDON, places), null, t);
 });
 
 // ---------- roles added by link ----------
