@@ -58,6 +58,17 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 - **Light and dark.** Settings has an Appearance option: match the phone (the default), light, or dark. The choice is saved on the phone and applied before the page paints. Native controls follow the theme, and the browser bar takes its colour from the header paint. The dark colours live in two blocks in `styles.css` that must stay identical. `sponsor-radar/scripts/design.test.mjs` checks both apps.
 - **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. It switches off when the phone asks for reduced motion. Settings has a Motion option: Match my phone (default) or Always on, which plays the motion even with Reduce Motion turned on.
 
+## Near me
+
+The All tab has a Near me filter. Switch it on, allow location when the phone asks, then pick a distance from 5 to 250 miles.
+
+- The list shows roles within that distance, nearest first. Each card shows how far away it is. Remote roles stay in and follow the nearby ones.
+- Distance is a straight line from you to the place in the advert (a town, or the district of its postcode). Roads are longer, so treat it as good to a few miles.
+- A role with no place that can be measured is hidden while the filter is on. The note under the filter says how many.
+- Your position is rounded to about 1 km and kept only on your phone. It is never sent anywhere.
+- On iPhone, if you said no to location, allow it in Settings, Privacy and Security, Location Services, Safari Websites.
+- `data/places.json` holds the coordinates and `scripts/geo.mjs` does the maths. Both are copies of Sponsor Radar's, so the apps stay independent. `sponsor-radar/scripts/build-places.py` rebuilds both. Contains OS data, Royal Mail data and National Statistics data, all Crown copyright and database right, under the Open Government Licence v3.0.
+
 ## Limits
 
 - Without a Reed or Adzuna key the workflow finds nothing. The list currently holds 9 roles from a manual Indeed search.

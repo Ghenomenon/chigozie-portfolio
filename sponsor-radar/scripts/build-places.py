@@ -1,4 +1,4 @@
-"""Builds sponsor-radar/data/places.json: rough coordinates for UK postcode districts and towns.
+"""Builds sponsor-radar/data/places.json and jobs/data/places.json: rough coordinates for UK postcode districts and towns.
 
 The app uses it on the phone to measure how far a role is from you. Nothing is sent anywhere.
 
@@ -55,5 +55,6 @@ out = {
     'attribution': 'Contains OS data (c) Crown copyright and database right; Royal Mail data (c) Royal Mail copyright and database right; National Statistics data (c) Crown copyright and database right. Open Government Licence v3.0.',
     'd': d, 't': dict(sorted(t.items())),
 }
-json.dump(out, open('sponsor-radar/data/places.json', 'w'), separators=(',', ':'), ensure_ascii=False)
+for path in ('sponsor-radar/data/places.json', 'jobs/data/places.json'):   # each app keeps its own copy
+    json.dump(out, open(path, 'w'), separators=(',', ':'), ensure_ascii=False)
 print(len(d), 'districts,', len(t), 'towns')
