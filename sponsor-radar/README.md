@@ -81,7 +81,7 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 
 ## Employer job boards
 
-Many licensed sponsors publish their own adverts on Greenhouse, Lever or Ashby. Those boards are open JSON, so the daily job reads them directly. No middleman and no API key.
+Many licensed sponsors publish their own adverts on Greenhouse, Lever, Ashby, SmartRecruiters or Workable. Those boards are open JSON, so the daily job reads them directly. No middleman and no API key.
 
 - `scripts/boards.mjs` looks for a board for every licensed sponsor it sees in Reed and Adzuna, plus a slice of the register that moves on each day. Recruitment agencies are skipped. It tries the employer's name as a board name. The short name alone ("monzo" for Monzo Bank) is only tried when the rest of the name is a word like Bank, Labs or Technologies.
 - A board is kept only when it clearly belongs to the employer. On Greenhouse the board's company name has to match. On Lever and Ashby the employer's name has to appear, with a capital letter, in most adverts. The board also needs at least one UK advert, and when only the short name matched, one in the town the register gives for the employer. Two employers can never share a board.
@@ -90,7 +90,10 @@ Many licensed sponsors publish their own adverts on Greenhouse, Lever or Ashby. 
 - Each day it reads every known board and keeps the UK adverts. They come with their full text, so the sponsorship wording is read straight away. They show as "Employer site".
 - They go through the same title, age and pay rules as Reed and Adzuna adverts. A role older than `maxAgeDays` is dropped.
 - It finds boards slowly at first, because the register is large. The count in the run log (`Employer boards: N known`) grows over the first weeks.
-- Workable, SmartRecruiters and Workday are not read yet.
+- SmartRecruiters lists adverts without their text. The job reads the UK list (up to 300 adverts per employer) and the full text of the 25 most recent from the last 30 days.
+- Workable limits how often its board API can be called. If it answers "too many requests", Workable is paused for the rest of that run and tried again the next day. The run log says so.
+- When a board service is added, employers missed before are tried again once (the `services` list in `data/boards.json`).
+- Workday is not read. Each employer's Workday site has its own address, so there is no name to guess.
 
 ## Add a role by link
 
