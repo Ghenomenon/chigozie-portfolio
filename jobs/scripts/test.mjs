@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { placeCoords, milesBetween, distanceMiles } from './geo.mjs';
 import {
   normCompany, titleOk, sponsorshipFromText, buildJob, dropReason, mergeJobs,
-  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, isAgency,
+  sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, isAgency, inboxToRaw,
 } from './lib.mjs';
 
 const cfg = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -140,6 +140,39 @@ test('places that cannot be measured give null', () => {
 
 test('almost every role in the live list can be placed', () => {
   const list = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
-  const placed = list.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
-  assert.ok(placed / list.length > 0.9, `only ${placed} of ${list.length} roles could be placed`);
+  const named = list.filter((j) => j.location && j.location !== 'UK');   // "UK" means the whole country, so it has no distance
+  const placed = named.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
+  assert.ok(placed / named.length > 0.9, `only ${placed} of ${named.length} roles with a named place could be placed`);
+});
+
+// ---------- the inbox ----------
+
+test('inbox items become adverts with a stable id, and unsafe or incomplete ones are skipped', () => {
+  const items = [
+    { title: 'Data Analyst', company: 'Acme Ltd', location: 'Leeds', url: 'https://uk.indeed.com/viewjob?jk=abc', source: 'Indeed', posted: '2026-11-25', snippet: 'Build reports.' },
+    { title: 'Reporting Analyst', company: 'Beta plc', url: 'https://www.linkedin.com/jobs/view/123456789', source: 'LinkedIn' },
+    { title: 'No link', company: 'Gamma', url: 'javascript:alert(1)' },
+    { title: 'Plain http', company: 'Gamma', url: 'http://example.com/job' },
+    { title: '', company: 'Delta', url: 'https://example.com/x' },
+    { company: 'Epsilon', url: 'https://example.com/y' },
+    null,
+  ];
+  const raw = inboxToRaw(items, '2026-11-26');
+  assert.equal(raw.length, 2);
+  assert.equal(raw[0].source, 'Indeed');
+  assert.equal(raw[0].posted, '2026-11-25');
+  assert.equal(raw[1].posted, '2026-11-26', 'no date means today');
+  assert.equal(raw[0].id, inboxToRaw([items[0]], '2030-01-01')[0].id, 'same link, same id');
+  assert.notEqual(raw[0].id, raw[1].id);
+  assert.deepEqual(inboxToRaw(undefined, '2026-11-26'), []);
+  assert.equal(inboxToRaw([{ title: 'T', company: 'C', url: 'https://x.example/1', source: 'Somewhere' }], '2026-11-26')[0].source, 'Job alert');
+});
+
+test('inbox adverts go through the same filters and sponsor check as any other', () => {
+  const [raw] = inboxToRaw([{ title: 'Data Analyst', company: 'Acme Care Ltd', url: 'https://uk.indeed.com/viewjob?jk=abc', source: 'Indeed', snippet: 'No sponsorship available.' }], today);
+  const sponsors = new Map([['acme care', true]]);
+  const job = buildJob(raw, cfg, sponsors, today);
+  assert.equal(job.sponsorLicence, 'licensed');
+  assert.equal(job.sponsorship, 'refused');
+  assert.equal(dropReason(job, cfg, today), 'no-sponsorship');
 });

@@ -473,6 +473,88 @@ export function sponsorMapFromCsv(text) {
   return map;
 }
 
+// ---------- the register on the phone, and roles added by link ----------
+
+// 32-bit FNV-1a of the normalised company name. 121,000 names fit in about 480 KB as sorted numbers.
+export function nameHash(name) {
+  const t = normCompany(name);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < t.length; i += 1) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h >>> 0;
+}
+
+// The register as sorted little-endian 32-bit hashes, one per licensed employer.
+export function packRegister(names) {
+  const hashes = [...new Set([...names].map((n) => nameHash(n)))].sort((a, b) => a - b);
+  const view = new DataView(new ArrayBuffer(hashes.length * 4));
+  hashes.forEach((h, i) => view.setUint32(i * 4, h, true));
+  return new Uint8Array(view.buffer);
+}
+
+// `bytes` is the packed register as an ArrayBuffer or Uint8Array. A 32-bit hash can collide, but only about once in 35,000 lookups.
+export function registerHas(bytes, name) {
+  if (!bytes || !normCompany(name)) return false;
+  const buf = bytes instanceof ArrayBuffer ? bytes : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  const view = new DataView(buf);
+  const want = nameHash(name);
+  let lo = 0, hi = view.byteLength / 4 - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const v = view.getUint32(mid * 4, true);
+    if (v === want) return true;
+    if (v < want) lo = mid + 1; else hi = mid - 1;
+  }
+  return false;
+}
+
+const titleCase = (slug) => slug.split('-').filter(Boolean).map((w) => (w.length > 2 || /^[a-z]$/i.test(w) ? w[0].toUpperCase() + w.slice(1) : w)).join(' ');
+
+// What a job link reveals without opening it. LinkedIn links carry the title and employer. Most others carry nothing.
+export function guessFromUrl(raw) {
+  let u;
+  try { u = new URL(String(raw).trim()); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const host = u.hostname.replace(/^www\./, '').replace(/^[a-z]{2}\./, (m) => (m === 'uk.' ? '' : m));
+  const names = { 'indeed.com': 'Indeed', 'indeed.co.uk': 'Indeed', 'linkedin.com': 'LinkedIn', 'reed.co.uk': 'Reed', 'adzuna.co.uk': 'Adzuna', 'glassdoor.co.uk': 'Glassdoor', 'glassdoor.com': 'Glassdoor', 'totaljobs.com': 'Totaljobs', 'cv-library.co.uk': 'CV-Library', 'to.indeed.com': 'Indeed' };
+  const source = names[host] || host;
+  const out = { source, url: u.href };
+  if (source === 'LinkedIn') {
+    const m = /\/jobs\/view\/(?:([a-z0-9-]*[a-z])-)?(\d{6,})\/?$/i.exec(u.pathname);
+    if (m && m[1]) {
+      const at = m[1].lastIndexOf('-at-');
+      if (at > 0) { out.title = titleCase(m[1].slice(0, at)); out.company = titleCase(m[1].slice(at + 4)); }
+      else out.title = titleCase(m[1]);
+    }
+  } else if (source === 'Reed') {
+    const m = /\/jobs\/([a-z0-9-]+)\/\d+/i.exec(u.pathname);
+    if (m) out.title = titleCase(m[1]);
+  }
+  return out;
+}
+
+// A role the person added by hand. `register` is the packed register, or null when it could not be loaded.
+export function manualJob({ url, title, company, location = '' }, today, register = null) {
+  const g = guessFromUrl(url) || {};
+  const named = cleanText(company || g.company || '');
+  const job = {
+    id: `manual-${nameHash(g.url || url).toString(36)}`,
+    title: cleanText(title || g.title || 'Role added by link'),
+    company: named || 'Employer not given',
+    location: formatLocation(location),
+    locations: [formatLocation(location)].filter(Boolean),
+    url: g.url || url,
+    source: g.source || 'Added by you',
+    posted: today,
+    workMode: detectWorkMode(title, location),
+    sponsorship: 'unknown',
+    sponsorLicence: !register || !named ? 'unknown' : registerHas(register, named) ? 'licensed' : 'not-found',
+    manual: true,
+  };
+  job.agency = isAgency(job);
+  job.family = jobFamily(job.title);
+  return job;
+}
+
 export function parseReedDate(s) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || '');
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;

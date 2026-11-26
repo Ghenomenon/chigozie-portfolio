@@ -57,5 +57,17 @@ globalThis.fetch = async (input) => {
     if (process.env.MOCK_DETAIL_FAIL) return json({ error: 'down' }, 500);
     return json({ jobDescription: '<p>Full advert text. Visa sponsorship available for the right candidate.</p>' });
   }
+  // Employer boards. Sponsor N Ltd has a Greenhouse board named sponsorN with one UK advert and one US advert.
+  // MOCK_NO_BOARDS turns the boards off, so every guess is a 404.
+  const gh = /boards-api\.greenhouse\.io\/v1\/boards\/(sponsor\d+)\/jobs/.exec(url);
+  if (gh && !process.env.MOCK_NO_BOARDS) {
+    const n = gh[1].replace('sponsor', '');
+    const published = new Date().toISOString();
+    return json({ jobs: [
+      { id: 9000 + Number(n), title: 'Data Analyst', company_name: `Sponsor ${n}`, absolute_url: `https://job-boards.greenhouse.io/${gh[1]}/jobs/${9000 + Number(n)}`, location: { name: 'London, UK' }, first_published: published, content: '&lt;p&gt;Analyse sponsor data. Sorry, no sponsorship is available for this role.&lt;/p&gt;' },
+      { id: 8000 + Number(n), title: 'Data Analyst', company_name: `Sponsor ${n}`, absolute_url: `https://job-boards.greenhouse.io/${gh[1]}/jobs/${8000 + Number(n)}`, location: { name: 'Austin, TX' }, first_published: published, content: '&lt;p&gt;US role&lt;/p&gt;' },
+    ] });
+  }
+  if (/boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com/.test(url)) return json({ error: 'not found' }, 404);
   return json({ results: [] });
 };

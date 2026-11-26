@@ -30,7 +30,7 @@ EXTRAS = {
     'cardiff': (51.48, -3.18), 'belfast': (54.6, -5.93), 'hounslow': (51.47, -0.37), 'derry': (55.0, -7.31),
     'londonderry': (55.0, -7.31), 'northern ireland': (54.6, -6.7), 'greenwich': (51.48, 0.0), 'droitwich': (52.27, -2.15),
     'carmarthen': (51.86, -4.31), 'milford haven': (51.71, -5.04), 'bury st. edmunds': (52.25, 0.71), 'south croydon': (51.36, -0.09),
-    'london': (51.51, -0.12),
+    'london': (51.51, -0.12), 'newcastle': (54.97, -1.61), 'ammanford': (51.79, -3.99), 'antrim': (54.72, -6.21), 'county antrim': (54.7, -6.2),
 }
 
 src = sys.argv[1]

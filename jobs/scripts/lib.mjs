@@ -35,6 +35,38 @@ export function isAgency(job) {
   return AGENCY_TEXT.test(String(job.summary || job.description || '').slice(0, 1800));
 }
 
+// ---------- the inbox ----------
+// A scheduled Claude task saves adverts it found in your Indeed and LinkedIn alert emails, and from Indeed searches,
+// into data/inbox.json. Each item: { title, company, location, url, source, posted, snippet }. This turns them into
+// the same shape as Reed and Adzuna adverts, so they get the same filters, sponsor check and score.
+
+const fnv = (str) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i += 1) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+};
+
+export function inboxToRaw(items, today) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    const title = String(it?.title || '').trim(), company = String(it?.company || '').trim(), url = String(it?.url || '').trim();
+    if (!title || !company || !/^https:\/\//.test(url)) continue;     // an advert needs a title, an employer and a safe link
+    const posted = /^\d{4}-\d{2}-\d{2}$/.test(it.posted || '') ? it.posted : today;
+    out.push({
+      id: `inbox-${fnv(url)}`,
+      title, company,
+      location: String(it.location || '').trim(),
+      url,
+      source: ['Indeed', 'LinkedIn'].includes(it.source) ? it.source : 'Job alert',
+      posted,
+      salaryMin: null, salaryMax: null,
+      salaryText: String(it.salaryText || '').slice(0, 80),
+      description: String(it.snippet || ''),
+    });
+  }
+  return out;
+}
+
 export function titleOk(title, cfg) {
   const t = ` ${String(title).toLowerCase()} `;
   if (cfg.titleExclude.some((w) => t.includes(w))) return false;

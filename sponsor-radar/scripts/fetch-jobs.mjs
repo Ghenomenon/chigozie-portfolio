@@ -5,13 +5,16 @@
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { discoverBoards, readBoards, registerSlice, displayName } from './boards.mjs';
 import {
-  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, parseReedDate, idsOf, normCompany,
+  buildJob, dropReason, mergeJobs, sponsorMapFromCsv, packRegister, parseReedDate, idsOf, normCompany, isAgency,
 } from './lib.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'));
 const dataPath = process.env.FEED_PATH || join(root, 'data', 'jobs.json');
+const boardsPath = process.env.BOARDS_PATH || join(root, 'data', 'boards.json');
+const registerPath = process.env.REGISTER_PATH || join(root, 'data', 'register.bin');
 // FEED_TODAY lets tests pretend it is another day.
 const today = process.env.FEED_TODAY || new Date().toISOString().slice(0, 10);
 
@@ -20,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, process.env.FETCH_DELAY_M
 
 async function getJson(url, headers = {}) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(url, { headers: { 'User-Agent': 'sponsor-radar/1.0', ...headers } });
+    const res = await fetch(url, { headers: { 'User-Agent': 'sponsor-radar/1.0', ...headers }, signal: AbortSignal.timeout(20000) });
     if (res.status === 429 || res.status >= 500) { await sleep(2000 * (attempt + 1)); continue; }
     if (!res.ok) throw new Error(`${res.status} ${url.split('?')[0]}`);
     return res.json();
@@ -117,6 +120,43 @@ async function fromAdzuna(query) {
   return out;
 }
 
+
+// Employer job boards (Greenhouse, Lever, Ashby). Finds boards for licensed sponsors, remembers them in
+// data/boards.json, and reads them every day. These adverts arrive with their full text.
+async function fromBoards(rawSoFar, sponsorMap) {
+  const bc = cfg.boards;
+  if (!bc?.enabled) return [];
+  const cache = (() => { try { const c = JSON.parse(readFileSync(boardsPath, 'utf8')); return { found: c.found || {}, missed: c.missed || {} }; } catch { return { found: {}, missed: {} }; } })();
+  for (const s of bc.seeds || []) {
+    const key = normCompany(s.name);
+    if (key && !cache.found[key]) cache.found[key] = { name: s.name, ats: s.ats, slug: s.slug, found: today };
+  }
+  const places = (() => { try { return JSON.parse(readFileSync(join(root, 'data', 'places.json'), 'utf8')); } catch { return null; } })();
+  const fetchOne = (url) => getJson(url);
+
+  // employers to look for: licensed sponsors seen in today's searches first, then a slice of the register
+  const names = new Map();
+  if (sponsorMap) {
+    for (const r of rawSoFar) {
+      const key = normCompany(r.company);
+      if (key && sponsorMap.has(key) && !names.has(key) && !isAgency({ company: r.company, title: r.title })) names.set(key, r.company);
+    }
+    for (const key of registerSlice([...sponsorMap.keys()], today, Number(process.env.BOARDS_SLICE ?? bc.registerSlicePerRun))) {
+      if (!names.has(key)) names.set(key, displayName(key));
+    }
+  }
+  const limit = Number(process.env.BOARDS_PROBES ?? bc.probesPerRun);
+  const found = await discoverBoards([...names.values()], cache, { today, getJson: fetchOne, limit, recheckDays: bc.recheckMissDays });
+  const read = await readBoards(cache, { today, getJson: fetchOne, places });
+  if (read.failed) errors.push(`${read.failed} employer boards could not be read`);
+
+  mkdirSync(dirname(boardsPath), { recursive: true });
+  const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
+  writeFileSync(boardsPath, JSON.stringify({ updated: today, found: sortKeys(cache.found), missed: sortKeys(cache.missed) }) + '\n');
+  console.log(`Employer boards: ${read.boards} known, tried ${found.tried} employers and found ${found.found}, ${found.waiting} still to try. ${read.raw.length} UK adverts read${read.gone ? `, ${read.gone} boards gone` : ''}${read.failed ? `, ${read.failed} failed` : ''}`);
+  return read.raw;
+}
+
 async function main() {
   const existing = (() => {
     try { return JSON.parse(readFileSync(dataPath, 'utf8')).jobs || []; } catch { return []; }
@@ -125,6 +165,11 @@ async function main() {
   const known = new Map(existing.flatMap((j) => idsOf(j).map((id) => [id, j])));
 
   const sponsorMap = await loadSponsorMap();
+  if (sponsorMap) {
+    // the phone checks employers you add by link against this copy of the register
+    mkdirSync(dirname(registerPath), { recursive: true });
+    writeFileSync(registerPath, packRegister(sponsorMap.keys()));
+  }
   const raw = [];
   for (const q of cfg.queries) {
     for (const src of [fromReed, fromAdzuna]) {
@@ -132,6 +177,8 @@ async function main() {
       await sleep(250);
     }
   }
+  try { raw.push(...await fromBoards(raw, sponsorMap)); } catch (e) { errors.push(`employer boards: ${e.message}`); }
+
   if (!process.env.REED_API_KEY && !(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY)) {
     console.warn('No API keys set. Add REED_API_KEY or ADZUNA_APP_ID and ADZUNA_APP_KEY as repository secrets.');
   }
@@ -197,6 +244,7 @@ async function main() {
       let job = m.job;
       if (g.readNow) { job = buildJob(m.r, cfg, sponsorMap); job.detail = true; }
       else if (g.stored?.detail) { job.summary = g.stored.summary; job.sponsorship = g.stored.sponsorship; job.detail = true; }
+      else if (m.r._full) job.detail = true;                // boards give the whole advert
       kept.push(job);
     }
   }
