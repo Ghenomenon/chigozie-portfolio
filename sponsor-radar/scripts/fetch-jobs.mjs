@@ -142,18 +142,19 @@ async function fromBoards(rawSoFar, sponsorMap) {
       if (key && sponsorMap.has(key) && !names.has(key) && !isAgency({ company: r.company, title: r.title })) names.set(key, r.company);
     }
     for (const key of registerSlice([...sponsorMap.keys()], today, Number(process.env.BOARDS_SLICE ?? bc.registerSlicePerRun))) {
-      if (!names.has(key)) names.set(key, displayName(key));
+      if (!names.has(key) && !isAgency({ company: key, title: '' })) names.set(key, displayName(key));
     }
   }
   const limit = Number(process.env.BOARDS_PROBES ?? bc.probesPerRun);
-  const found = await discoverBoards([...names.values()], cache, { today, getJson: fetchOne, limit, recheckDays: bc.recheckMissDays });
+  const townOf = (key) => (sponsorMap && typeof sponsorMap.get(key) === 'string' ? sponsorMap.get(key) : '');
+  const found = await discoverBoards([...names.values()], cache, { today, getJson: fetchOne, limit, recheckDays: bc.recheckMissDays, places, townOf });
   const read = await readBoards(cache, { today, getJson: fetchOne, places });
   if (read.failed) errors.push(`${read.failed} employer boards could not be read`);
 
   mkdirSync(dirname(boardsPath), { recursive: true });
   const sortKeys = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1)));
   writeFileSync(boardsPath, JSON.stringify({ updated: today, found: sortKeys(cache.found), missed: sortKeys(cache.missed) }) + '\n');
-  console.log(`Employer boards: ${read.boards} known, tried ${found.tried} employers and found ${found.found}, ${found.waiting} still to try. ${read.raw.length} UK adverts read${read.gone ? `, ${read.gone} boards gone` : ''}${read.failed ? `, ${read.failed} failed` : ''}`);
+  console.log(`Employer boards: ${read.boards} known, tried ${found.tried} employers and found ${found.found}, ${found.waiting} still to try${found.dropped ? `, ${found.dropped} dropped on a second check` : ''}. ${read.raw.length} UK adverts read${read.gone ? `, ${read.gone} boards gone` : ''}${read.failed ? `, ${read.failed} failed` : ''}`);
   return read.raw;
 }
 

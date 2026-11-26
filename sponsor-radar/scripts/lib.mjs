@@ -72,7 +72,7 @@ export const isHardToSponsor = (job) => familyOf(job) !== 'analyst';
 // so a licence or a missing licence says little about the real employer. This is a best guess from the
 // company name and the advert wording, and it can be wrong either way.
 const AGENCY_WORDS = /\b(recruit\w*|staffing|resourcing|headhunt\w*|personnel|appointments|executive search|search (and|&) selection|interim)\b/i;
-const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|search consultancy|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic)/i;
+const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|search consultancy|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic|harvey nash|goodman masson|oliver james|robert walters|investigo|sthree|huxley|gattaca|matchtech|sanderson|pertemps|blue arrow|office angels)/i;
 const AGENCY_TEXT = /\bon behalf of (our|a|one of our|the) client|\bour client\b|\b(acting as|is) an? employment (agency|business)|\brecruitment (agency|consultancy|business)\b/i;
 
 export function isAgency(job) {
@@ -463,12 +463,14 @@ export function sponsorMapFromCsv(text) {
   const iName = head.findIndex((h) => h.includes('organisation'));
   const iType = head.findIndex((h) => h.includes('type'));
   const iRoute = head.findIndex((h) => h.includes('route'));
+  const iTown = head.findIndex((h) => h.includes('town'));
   const map = new Map();
   for (const r of rows.slice(1)) {
     if (!r[iName]) continue;
     const route = (r[iRoute] || '').toLowerCase();
     const type = (r[iType] || '').toLowerCase();
-    if ((route.includes('skilled worker') || route.includes('health and care')) && type.includes('a rating')) map.set(normCompany(r[iName]), true);
+    // the value is the registered town, used to confirm an employer's job board. `true` when the register gives none.
+    if ((route.includes('skilled worker') || route.includes('health and care')) && type.includes('a rating')) map.set(normCompany(r[iName]), (iTown >= 0 && r[iTown] ? r[iTown].trim() : '') || true);
   }
   return map;
 }

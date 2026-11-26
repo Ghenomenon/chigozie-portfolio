@@ -83,7 +83,9 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 
 Many licensed sponsors publish their own adverts on Greenhouse, Lever or Ashby. Those boards are open JSON, so the daily job reads them directly. No middleman and no API key.
 
-- `scripts/boards.mjs` looks for a board for every licensed sponsor it sees in Reed and Adzuna, plus a slice of the register that moves on each day. It tries the employer name as a board name, and keeps a board only if the adverts really mention that employer.
+- `scripts/boards.mjs` looks for a board for every licensed sponsor it sees in Reed and Adzuna, plus a slice of the register that moves on each day. Recruitment agencies are skipped. It tries the employer's name as a board name. The short name alone ("monzo" for Monzo Bank) is only tried when the rest of the name is a word like Bank, Labs or Technologies.
+- A board is kept only when it clearly belongs to the employer. On Greenhouse the board's company name has to match. On Lever and Ashby the employer's name has to appear, with a capital letter, in most adverts. The board also needs at least one UK advert, and when only the short name matched, one in the town the register gives for the employer. Two employers can never share a board.
+- Boards found under earlier, looser rules are checked again once (the `rules` number in `data/boards.json`). Of the first 63, 27 failed the new checks and were dropped.
 - What it finds is saved in `data/boards.json`, so a board is searched for once. A miss is retried after 30 days. `config.json` sets how many employers are tried each run (`probesPerRun`, `registerSlicePerRun`) and can list known boards under `seeds`, for example `{ "name": "Monzo Bank Limited", "ats": "greenhouse", "slug": "monzo" }`.
 - Each day it reads every known board and keeps the UK adverts. They come with their full text, so the sponsorship wording is read straight away. They show as "Employer site".
 - They go through the same title, age and pay rules as Reed and Adzuna adverts. A role older than `maxAgeDays` is dropped.
