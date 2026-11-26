@@ -1,6 +1,6 @@
 // Cache the app shell. Always try the network first for the job list so the data is fresh.
-const CACHE = 'sponsor-radar-v7';
-const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'cv.md', 'scripts/lib.mjs', 'data/thresholds.json'];
+const CACHE = 'sponsor-radar-v11';
+const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'fonts/archivo-wdth.woff2', 'fonts/bricolage-wght.woff2', 'cv.md', 'scripts/lib.mjs', 'data/thresholds.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
