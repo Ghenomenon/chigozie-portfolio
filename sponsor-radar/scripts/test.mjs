@@ -702,7 +702,7 @@ test('boards found under the old rules are checked again, and two employers cann
 });
 
 test('well-known UK recruiters are tagged as agencies', () => {
-  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Robert Walters']) assert.ok(isAgency({ company: c, title: '' }), c);
+  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Robert Walters', 'Hackajob Ltd', 'hackajob']) assert.ok(isAgency({ company: c, title: '' }), c);
   assert.ok(!isAgency({ company: 'Monzo Bank', title: '' }));
 });
 
