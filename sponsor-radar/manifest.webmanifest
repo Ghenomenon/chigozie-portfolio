@@ -6,7 +6,7 @@
   "scope": "/sponsor-radar/",
   "display": "standalone",
   "background_color": "#FFFCF9",
-  "theme_color": "#FFC247",
+  "theme_color": "#FFDCA0",
   "icons": [
     {
       "src": "icons/icon-192.png",

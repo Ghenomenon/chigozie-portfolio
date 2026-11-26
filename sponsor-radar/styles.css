@@ -19,18 +19,18 @@
 
 :root {
   /* BRAND-START */
-  --brand: #F47D31;          /* fills: buttons, active tab dot */
+  --brand: #F4975C;          /* fills: buttons, active tab dot */
   --on-brand: #1B1411;       /* text on a brand fill */
-  --brand-deep: #B4440A;     /* brand-coloured text on the page */
-  --tint: #FDE7D9;           /* tinted cards and the active tab */
-  --paint-1: #F47D31;
-  --paint-2: #E8503A;
-  --paint-3: #F6A0B5;
-  --paint-4: #FFC247;        /* base colour under the blurred paint */
+  --brand-deep: #A9480F;     /* brand-coloured text on the page */
+  --tint: #FDEBDF;           /* tinted cards and the active tab */
+  --paint-1: #F6A56E;
+  --paint-2: #EE8F78;
+  --paint-3: #F6BBC8;
+  --paint-4: #FFDCA0;        /* base colour under the blurred paint */
   --on-paint: #1B1411;       /* text on the painted header */
   --icon-bg: rgba(255, 255, 255, .55);
   --icon-ink: #1B1411;
-  --chip-on: #FFC247;        /* selected filter pill */
+  --chip-on: #FFD684;        /* selected filter pill */
   --on-chip-on: #1B1411;
   /* BRAND-END */
 
@@ -57,14 +57,14 @@
     /* BRAND-DARK-START */
     --brand-deep: #FF9A5C;
     --tint: #3A2418;
-    --paint-1: #B24C17;
-    --paint-2: #9A2F26;
-    --paint-3: #7D3A55;
-    --paint-4: #7A4A12;
+    --paint-1: #9A5430;
+    --paint-2: #86423A;
+    --paint-3: #6E4258;
+    --paint-4: #5F4220;
     --on-paint: #FFF4EA;
     --icon-bg: rgba(0, 0, 0, .3);
     --icon-ink: #FFF4EA;
-    --chip-on: #FFC247;
+    --chip-on: #FFD684;
     --on-chip-on: #1B1411;
     /* BRAND-DARK-END */
 
@@ -108,7 +108,7 @@ body {
   color: var(--on-paint);
   isolation: isolate;
 }
-.blobs { position: absolute; inset: -20% -10%; z-index: -1; filter: blur(34px) saturate(1.1); }
+.blobs { position: absolute; inset: -20% -10%; z-index: -1; filter: blur(34px) saturate(.95); }
 .blobs span { position: absolute; border-radius: 50%; }
 .blobs span:nth-child(1) { width: 62%; height: 120%; left: -8%; top: -10%; background: var(--paint-1); }
 .blobs span:nth-child(2) { width: 46%; height: 90%; right: -6%; top: 5%; background: var(--paint-2); }
