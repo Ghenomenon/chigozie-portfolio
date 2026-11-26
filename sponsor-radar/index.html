@@ -40,6 +40,17 @@
         <div class="togs">
           <label class="tog"><input type="checkbox" id="f-remote"><span>Remote or hybrid</span></label>
           <label class="tog"><input type="checkbox" id="f-pay"><span>Pay stated</span></label>
+          <label class="tog"><input type="checkbox" id="f-near"><span>Near me</span></label>
+        </div>
+        <div id="near-row" class="near" hidden>
+          <label>Within
+            <select id="f-miles" aria-label="Distance in miles">
+              <option value="5">5 miles</option><option value="10">10 miles</option><option value="25" selected>25 miles</option>
+              <option value="50">50 miles</option><option value="100">100 miles</option><option value="250">250 miles</option>
+            </select>
+          </label>
+          <button type="button" id="near-update" class="btn">Update my location</button>
+          <p id="near-note" class="hint" role="status"></p>
         </div>
         <label class="range">Min fit <output id="f-score-out">0</output>
           <input type="range" id="f-score" min="0" max="5" step="0.5" value="0">

@@ -79,6 +79,17 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 - **Light and dark.** Settings has an Appearance option: match the phone (the default), light, or dark. The choice is saved on the phone and applied before the page paints, so there is no flash. The colour scheme is declared, so native controls such as the status menu follow the theme, and the browser bar takes its colour from the header paint. The dark colours live in two blocks in `styles.css` (one for a chosen dark, one for a dark phone). They must stay identical, and `scripts/design.test.mjs` checks it.
 - **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. It switches off when the phone asks for reduced motion. Settings has a Motion option: Match my phone (default) or Always on, which plays the motion even with Reduce Motion turned on.
 
+## Near me
+
+The All tab has a Near me filter. Switch it on, allow location when the phone asks, then pick a distance from 5 to 250 miles.
+
+- The list shows roles within that distance, nearest first. Each card shows how far away it is. Remote roles stay in when your search includes remote, and follow the nearby ones.
+- Distance is a straight line from you to the place named in the advert. Roads are longer. Adverts name a town, a county or a postcode district, so treat it as good to a few miles.
+- A role that names no place we can measure ("United Kingdom", or a place outside Great Britain and Northern Ireland) is hidden while the filter is on. The note under the filter says how many.
+- Your position is rounded to about 1 km and kept only on your phone. It is never sent to the site, the feed or any service.
+- On iPhone, if you said no to location, allow it in Settings, Privacy and Security, Location Services, Safari Websites.
+- Coordinates for towns and postcode districts are in `data/places.json`. `scripts/build-places.py` rebuilds it from the ONS Postcode Directory and OS Open Names (Open Government Licence v3.0). Contains OS data, Royal Mail data and National Statistics data, all Crown copyright and database right.
+
 ## Limits
 
 - Without a Reed or Adzuna key the workflow finds nothing.
