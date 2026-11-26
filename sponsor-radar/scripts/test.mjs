@@ -7,6 +7,7 @@ import {
   DEFAULT_PROFILE, matchesProfile, belowSponsorThreshold, isAgency, isRecruiter, jobFamily, isHardToSponsor, normalisePay,
   payBasis, hourlyEquivalent, belowPayFloor, belowMinimumWage,
   expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
+  placeCoords, milesBetween, distanceMiles,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -455,4 +456,50 @@ test('folding keeps the latest last-seen and closing dates', () => {
   const [one] = collapseDuplicates([a, b]);
   assert.equal(one.lastSeen, '2026-11-22');
   assert.equal(one.expires, '2026-12-10');
+});
+
+// ---------- distance from you ----------
+const places = JSON.parse(readFileSync(new URL('../data/places.json', import.meta.url), 'utf8'));
+const LONDON = [51.51, -0.12], MANCHESTER = [53.48, -2.24];
+
+test('miles between London and Manchester is about 163', () => {
+  const m = milesBetween(LONDON, MANCHESTER);
+  assert.ok(m > 155 && m < 170, String(m));
+  assert.equal(milesBetween(LONDON, LONDON), 0);
+});
+
+test('place names, postcode districts, counties and sub-areas all resolve', () => {
+  const near = (text, [lat, lon], within = 12) => {
+    const c = placeCoords(text, places);
+    assert.ok(c, `no coordinates for ${text}`);
+    assert.ok(milesBetween(c, [lat, lon]) < within, `${text} landed ${Math.round(milesBetween(c, [lat, lon]))} miles off`);
+  };
+  near('London', [51.51, -0.12]);
+  near('Milton Keynes', [52.04, -0.76]);
+  near('Near LE67', [52.72, -1.37]);
+  near('Near SE1', [51.5, -0.09], 4);
+  near('South West London', [51.51, -0.12], 15);
+  near('Hampshire', [51.06, -1.31], 5);
+  near('Belfast', [54.6, -5.93], 5);
+  near('Cardiff', [51.48, -3.18], 5);
+  near('Leeds, West Yorkshire', [53.8, -1.55], 8);
+});
+
+test('places that cannot be measured give null, not a wrong guess', () => {
+  for (const t of ['United Kingdom', 'County Galway', 'Dublin', '', 'Remote']) assert.equal(placeCoords(t, places), null, t);
+  assert.equal(placeCoords('London', null), null);
+});
+
+test('the distance to a folded advert is the nearest of its places', () => {
+  const job = { locations: ['Newcastle upon Tyne', 'Birmingham', 'Plymouth'], location: 'Newcastle upon Tyne and 2 more' };
+  const fromBirmingham = distanceMiles(job, [52.48, -1.9], places);
+  assert.ok(fromBirmingham < 5, String(fromBirmingham));
+  assert.equal(distanceMiles({ locations: ['United Kingdom'] }, LONDON, places), null);
+  assert.equal(distanceMiles(job, null, places), null);
+});
+
+test('every place in the live feed that names a town is measurable, and almost all roles are', () => {
+  const jobs = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
+  const placed = jobs.filter((j) => distanceMiles(j, LONDON, places) !== null).length;
+  assert.ok(placed / jobs.length > 0.9, `only ${placed} of ${jobs.length} roles could be placed`);
 });
