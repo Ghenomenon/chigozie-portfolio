@@ -16,6 +16,10 @@
   let tracker = store.get('jr.tracker', {});   // id -> { status, note, job snapshot }
   let seen = new Set(store.get('jr.seen', []));
   let tab = 'today';
+  let geo = null;                       // scripts/geo.mjs, loaded when Near me is first used
+  let places = null;                    // rough coordinates for postcode districts and towns (data/places.json)
+  let near = store.get('jr.near', { on: false, miles: 25 });   // the Near me filter
+  let where = store.get('jr.where', null);                     // [lat, lon] of this phone, rounded to about 1 km. Never leaves the phone.
 
   const $ = (id) => document.getElementById(id);
 
@@ -81,6 +85,8 @@
     const t = tracker[j.id];
     const fitClass = j.score >= 3.8 ? 'hi' : j.score < 2.5 ? 'lo' : '';
     const chips = el('div', { class: 'chips' });
+    const miles = nearActive() && j.workMode !== 'remote' ? geo.distanceMiles(j, where, places) : null;
+    if (miles !== null) chips.append(el('span', { class: 'chip', title: 'Straight-line distance from you to the place in the advert. Roads are longer.', text: miles < 1 ? 'Under a mile away' : `${Math.round(miles)} mi away` }));
     if (j.workMode !== 'onsite') chips.append(el('span', { class: 'chip good', text: j.workMode === 'remote' ? 'Remote' : 'Hybrid' }));
     if (isRecruiter(j)) chips.append(el('span', { class: 'chip warn', title: 'A recruiter advertises for clients. Its licence says little about the real employer.', text: 'Recruiter · ask who the employer is' }));
     else if (j.sponsorLicence === 'licensed') chips.append(el('span', { class: 'chip good', text: 'Licensed sponsor' }));
@@ -143,18 +149,92 @@
     c.append(holder);
   }
 
+  const nearActive = () => Boolean(near.on && where && places && geo);
+  const distanceOf = (j) => {
+    if (j.workMode === 'remote') return 1e6;               // remote roles have no distance, so they follow the nearby ones
+    const d = geo.distanceMiles(j, where, places);
+    return d === null ? Infinity : d;
+  };
+
+  function renderNearNote(counts = {}) {
+    $('near-row').hidden = !near.on && !nearNote;           // a refusal stays visible even though the filter is off
+    $('f-near').checked = near.on;
+    $('f-miles').value = String(near.miles);
+    $('f-miles').parentElement.hidden = $('near-update').hidden = !near.on;
+    if (nearNote) { $('near-note').textContent = nearNote; return; }
+    if (!near.on) { $('near-note').textContent = ''; return; }
+    if (!where) { $('near-note').textContent = 'Waiting for your location.'; return; }
+    const bits = [`Measured from where you are now, as a straight line. Your location stays on this phone.`];
+    if (counts.tooFar) bits.push(`${counts.tooFar} are further away.`);
+    if (counts.unplaced) bits.push(`${counts.unplaced} name a place we cannot measure, so they are hidden.`);
+    $('near-note').textContent = bits.join(' ');
+  }
+  let nearNote = '';
+
+  async function loadPlaces() {
+    if (places) return places;
+    try {
+      geo = await import('./scripts/geo.mjs');
+      const r = await fetch('data/places.json');
+      if (r.ok) places = await r.json();
+    } catch { /* offline */ }
+    return places;
+  }
+
+  // Asks the phone where it is. The answer is rounded to about 1 km and kept only on this phone.
+  function locate({ quiet = false } = {}) {
+    return new Promise((resolve) => {
+      if (!('geolocation' in navigator)) { nearNote = 'This browser cannot share a location.'; resolve(false); return; }
+      if (!quiet || !where) { nearNote = 'Finding your location…'; renderNearNote(); }
+      navigator.geolocation.getCurrentPosition((pos) => {
+        where = [Math.round(pos.coords.latitude * 100) / 100, Math.round(pos.coords.longitude * 100) / 100];
+        store.set('jr.where', where);
+        nearNote = '';
+        resolve(true);
+      }, (err) => {
+        if (quiet && where) { nearNote = ''; resolve(false); return; }   // keep the last position
+        nearNote = err.code === 1
+          ? 'Location is off for this app. On iPhone, open Settings, Privacy and Security, Location Services, then allow it for Safari Websites.'
+          : 'Could not find your location. Try again outdoors or with Wi-Fi on.';
+        resolve(false);
+      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 10 * 60 * 1000 });
+    });
+  }
+
+  async function setNear(on) {
+    near = { ...near, on };
+    store.set('jr.near', near);
+    if (on) {
+      await loadPlaces();
+      if (!places) { near.on = false; store.set('jr.near', near); nearNote = 'The place list did not load. Check your connection.'; renderNearNote(); return; }
+      if (!(await locate()) && !where) { near.on = false; store.set('jr.near', near); renderNearNote(); return; }
+    } else nearNote = '';
+    replay();
+    renderAll();
+  }
+
   function renderAll() {
     const q = $('q').value.trim().toLowerCase();
     const minScore = Number($('f-score').value);
     $('f-score-out').textContent = minScore.toFixed(1);
-    const list = jobs.filter((j) => {
+    const gate = nearActive();
+    let tooFar = 0, unplaced = 0;
+    let list = jobs.filter((j) => {
       if (isHidden(j)) return false;
+      if (gate && j.workMode !== 'remote') {
+        const d = geo.distanceMiles(j, where, places);
+        if (d === null) { unplaced += 1; return false; }
+        if (d > near.miles) { tooFar += 1; return false; }
+      }
       if (q && !(`${j.title} ${j.company}`.toLowerCase().includes(q))) return false;
       if ($('f-sponsor').checked && j.sponsorLicence !== 'licensed') return false;
       if ($('f-remote').checked && j.workMode === 'onsite') return false;
       if ($('f-pay').checked && !(j.salaryMin || j.salaryMax)) return false;
       return j.score >= minScore;
     });
+    if (gate) list = list.map((j, i) => [j, i]).sort((a, b) => distanceOf(a[0]) - distanceOf(b[0]) || a[1] - b[1]).map((x) => x[0]);
+    renderNearNote({ tooFar, unplaced });
+    $('all-count').textContent = `${list.length} of ${jobs.length} roles${gate ? ', nearest first' : ''}`;
     fill($('list-all'), list, 'No roles match these filters.');
   }
 
@@ -493,6 +573,9 @@
 
   document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
   ['q', 'f-sponsor', 'f-remote', 'f-pay', 'f-score'].forEach((id) => $(id).addEventListener('input', renderAll));
+  $('f-near').addEventListener('change', (e) => setNear(e.target.checked));
+  $('f-miles').addEventListener('change', (e) => { near = { ...near, miles: Number(e.target.value) }; store.set('jr.near', near); replay(); renderAll(); });
+  $('near-update').addEventListener('click', async () => { await locate(); replay(); renderAll(); });
   $('refresh').addEventListener('click', load);
   $('export').addEventListener('click', exportTracker);
   $('import').addEventListener('change', (e) => e.target.files[0] && importTracker(e.target.files[0]));
@@ -505,5 +588,6 @@
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
   loadDefaultCv();
+  if (near.on) loadPlaces().then(() => locate({ quiet: true })).then(() => renderAll());   // refreshes the position quietly on each open
   load().then(() => show('today'));
 })();

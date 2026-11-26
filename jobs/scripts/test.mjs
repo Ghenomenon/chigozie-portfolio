@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { placeCoords, milesBetween, distanceMiles } from './geo.mjs';
 import {
   normCompany, titleOk, sponsorshipFromText, buildJob, dropReason, mergeJobs,
   sponsorMapFromCsv, parseCsv, parseReedDate, scoreJob, cleanText, isAgency,
@@ -109,4 +110,36 @@ test('a recruiter licence earns no bonus in the score', () => {
   assert.equal(emp.agency, false);
   assert.ok(rec.reasons.includes('Recruiter: ask who the employer is'));
   assert.ok(emp.reasons.includes('Employer holds a sponsor licence'));
+});
+
+// ---------- distance from you ----------
+const places = JSON.parse(readFileSync(new URL('../data/places.json', import.meta.url), 'utf8'));
+
+test('miles between London and Manchester is about 163', () => {
+  const m = milesBetween([51.51, -0.12], [53.48, -2.24]);
+  assert.ok(m > 155 && m < 170, String(m));
+});
+
+test('full postcodes without a space, towns and districts all resolve', () => {
+  const near = (text, [lat, lon], within = 8) => {
+    const c = placeCoords(text, places);
+    assert.ok(c, `no coordinates for ${text}`);
+    assert.ok(milesBetween(c, [lat, lon]) < within, `${text} landed ${Math.round(milesBetween(c, [lat, lon]))} miles off`);
+  };
+  near('NN72QA', [52.23, -0.9], 6);      // Northampton area
+  near('G11AB', [55.86, -4.25], 4);      // Glasgow
+  near('BT365QA', [54.68, -5.95], 6);    // Belfast area
+  near('London', [51.51, -0.12], 6);
+  near('Milford Haven', [51.71, -5.04]);
+});
+
+test('places that cannot be measured give null', () => {
+  for (const t of ['United Kingdom', 'Dublin', '', 'Remote']) assert.equal(placeCoords(t, places), null, t);
+  assert.equal(distanceMiles({ location: 'London' }, null, places), null);
+});
+
+test('almost every role in the live list can be placed', () => {
+  const list = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
+  const placed = list.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
+  assert.ok(placed / list.length > 0.9, `only ${placed} of ${list.length} roles could be placed`);
 });
