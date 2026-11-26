@@ -138,11 +138,12 @@ test('places that cannot be measured give null', () => {
   assert.equal(distanceMiles({ location: 'London' }, null, places), null);
 });
 
-test('almost every role in the live list can be placed', () => {
-  const list = JSON.parse(readFileSync(new URL('../data/jobs.json', import.meta.url), 'utf8')).jobs;
-  const named = list.filter((j) => j.location && j.location !== 'UK');   // "UK" means the whole country, so it has no distance
-  const placed = named.filter((j) => distanceMiles(j, [51.5, -0.12], places) !== null).length;
-  assert.ok(placed / named.length > 0.9, `only ${placed} of ${named.length} roles with a named place could be placed`);
+test('the place formats Reed and Adzuna use can be measured, and country-wide ones cannot', () => {
+  // A fixed sample, so a change in the live list can never fail the daily job.
+  const named = ['London', 'Milford Haven', 'NN72QA', 'G11AB', 'GL501QA', 'BT365QA', 'S12HH', 'Leeds, West Yorkshire', 'Birmingham, West Midlands', 'Manchester', 'Cardiff', 'Belfast'];
+  const placed = named.filter((t) => distanceMiles({ location: t }, [51.5, -0.12], places) !== null).length;
+  assert.equal(placed, named.length, 'every named place in the sample is measured');
+  for (const t of ['UK', 'Dublin']) assert.equal(distanceMiles({ location: t }, [51.5, -0.12], places), null, t);
 });
 
 // ---------- the inbox ----------
