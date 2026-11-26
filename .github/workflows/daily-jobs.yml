@@ -43,6 +43,7 @@ jobs:
             echo "No changes"
           else
             git commit -m "Update job list"
+            git pull --rebase origin main
             git push
           fi
 
