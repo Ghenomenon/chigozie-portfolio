@@ -55,6 +55,7 @@ Both apps share one design system. Only the brand colour differs: warm orange fo
 - **Type.** Archivo (a variable font with weight and width axes) for headings and numbers, and Bricolage Grotesque for text. Both are self-hosted in `fonts/` under the SIL Open Font Licence, so the apps make no request to a font service.
 - **Shape.** Pill buttons and filter pills, large rounded cards, a floating tab bar with line icons, and a painted header band behind a very large title.
 - **Colour.** Set in the variables at the top of `styles.css`. The block between the `BRAND-START` and `BRAND-END` markers, and the matching dark-mode block, are the only parts that differ between the two apps. Every text and background pairing was checked against WCAG AA contrast, in light and dark.
+- **Light and dark.** Settings has an Appearance option: match the phone (the default), light, or dark. The choice is saved on the phone and applied before the page paints. Native controls follow the theme, and the browser bar takes its colour from the header paint. The dark colours live in two blocks in `styles.css` that must stay identical. `sponsor-radar/scripts/design.test.mjs` checks both apps.
 - **Motion.** A soft blur that clears as things settle: cards on first load and after a deliberate change (a filter pill or saved settings), tab views, and the Apply sheet. It does not replay while typing. The header paint drifts slowly. All of it switches off when the phone asks for reduced motion.
 
 ## Limits

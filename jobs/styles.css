@@ -23,9 +23,9 @@
   --on-brand: #FFFFFF;       /* text on a brand fill */
   --brand-deep: #1F4FC4;     /* brand-coloured text on the page */
   --tint: #E4ECFF;           /* tinted cards and the active tab */
-  --paint-1: #2F6BEA;
+  --paint-1: #2A62DD;
   --paint-2: #6A4BD8;
-  --paint-3: #B8478F;
+  --paint-3: #A63C82;
   --paint-4: #2A55C8;        /* base colour under the blurred paint */
   --on-paint: #FFFFFF;       /* text on the painted header */
   --icon-bg: rgba(255, 255, 255, .22);
@@ -50,11 +50,42 @@
   --display: "Archivo Variable", "Arial Narrow", system-ui, sans-serif;
   --text: "Bricolage Grotesque Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
   --ease: cubic-bezier(.2, .7, .2, 1);
+  color-scheme: light dark;
 }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
+/* Dark colours. They apply when the person chooses Dark, and when they have not chosen and the phone is in dark mode.
+   The two blocks must stay identical: a test checks it. */
+:root[data-theme="dark"] {
+  /* BRAND-DARK-START */
+  --brand-deep: #8FB1FF;
+  --tint: #1F2A4A;
+  --paint-1: #2352B8;
+  --paint-2: #4B3AA8;
+  --paint-3: #8E3A78;
+  --paint-4: #1F3F94;
+  --on-paint: #FFFFFF;
+  --icon-bg: rgba(0, 0, 0, .3);
+  --icon-ink: #FFFFFF;
+  --chip-on: #2F6BEA;
+  --on-chip-on: #FFFFFF;
+  /* BRAND-DARK-END */
+  --bg: #17110E;
+  --card: #221A16;
+  --ink: #FFF4EA;
+  --muted: #BFAEA3;
+  --line: #33261F;
+  --good-bg: #16382A;
+  --good: #BDEBD0;
+  --warn-bg: #3D2B0C;
+  --warn: #FFD99A;
+  --bad-bg: #44211B;
+  --bad: #FFBFB3;
+  --shadow: 0 10px 30px -12px rgba(0, 0, 0, .6);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* BRAND-DARK-START */
+  :root:not([data-theme="light"]) {
     --brand-deep: #8FB1FF;
     --tint: #1F2A4A;
     --paint-1: #2352B8;
@@ -66,8 +97,6 @@
     --icon-ink: #FFFFFF;
     --chip-on: #2F6BEA;
     --on-chip-on: #FFFFFF;
-    /* BRAND-DARK-END */
-
     --bg: #17110E;
     --card: #221A16;
     --ink: #FFF4EA;
@@ -142,7 +171,7 @@ body {
   font-stretch: 62%;
   letter-spacing: -.005em;
 }
-.top .muted { color: var(--on-paint); opacity: .85; margin: 0; font-size: 14px; font-weight: 500; }
+.top .muted { color: var(--on-paint); margin: 0; font-size: 14px; font-weight: 600; }
 
 main { padding: 22px 16px 8px; max-width: 720px; margin: 0 auto; }
 .view h3 {
@@ -295,7 +324,7 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); fl
   cursor: pointer;
   transition: background-color .25s var(--ease), color .25s var(--ease), border-color .25s;
 }
-.fchip small { margin-left: 6px; font: 700 12px/1 var(--text); opacity: .75; }
+.fchip small { margin-left: 6px; font: 700 12px/1 var(--text); }
 .fchip.on { background: var(--chip-on); border-color: var(--chip-on); color: var(--on-chip-on); }
 .why-panel { margin: 0 0 14px; background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 0 16px; }
 .why-panel ul { margin: 0 0 8px; padding-left: 20px; }
@@ -369,7 +398,7 @@ dialog::backdrop { background: rgba(27, 20, 17, .42); -webkit-backdrop-filter: b
 .sheet h2 { font: 800 30px/1 var(--display); font-stretch: 70%; }
 .sheet-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
 .sheet-head p { margin: 4px 0 0; font-size: 14px; }
-.icon-btn.dark { background: var(--tint); backdrop-filter: none; font-size: 24px; }
+.icon-btn.dark { background: var(--tint); color: var(--ink); backdrop-filter: none; font-size: 24px; }
 .steps { padding-left: 24px; margin: 18px 0; display: grid; gap: 20px; }
 .steps li::marker { font: 900 17px var(--display); color: var(--brand-deep); }
 .steps p { margin: 3px 0 10px; font-size: 14px; }
@@ -419,3 +448,6 @@ textarea { min-height: 0; padding: 14px 16px; border-radius: 20px; font: 14px/1.
   .blobs span:nth-child(2) { animation-duration: 28s; animation-delay: -6s; }
   .blobs span:nth-child(3) { animation-duration: 25s; animation-delay: -12s; }
 }
+
+/* Placeholders use the muted text colour in both themes, so they stay readable. */
+::placeholder { color: var(--muted); opacity: 1; }

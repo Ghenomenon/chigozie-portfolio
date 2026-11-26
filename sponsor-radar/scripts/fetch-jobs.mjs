@@ -12,7 +12,8 @@ import {
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const cfg = JSON.parse(readFileSync(join(root, 'config.json'), 'utf8'));
 const dataPath = process.env.FEED_PATH || join(root, 'data', 'jobs.json');
-const today = new Date().toISOString().slice(0, 10);
+// FEED_TODAY lets tests pretend it is another day.
+const today = process.env.FEED_TODAY || new Date().toISOString().slice(0, 10);
 
 // FETCH_DELAY_MS lets tests run without waiting. Real runs keep the polite gaps.
 const sleep = (ms) => new Promise((r) => setTimeout(r, process.env.FETCH_DELAY_MS !== undefined ? Number(process.env.FETCH_DELAY_MS) : ms));
@@ -67,6 +68,7 @@ async function fromReed(query) {
         url: r.jobUrl,
         source: 'Reed',
         posted: parseReedDate(r.date),
+        expires: parseReedDate(r.expirationDate),
         salaryMin: r.minimumSalary || null,
         salaryMax: r.maximumSalary || null,
         description: r.jobDescription || '',
@@ -199,7 +201,9 @@ async function main() {
     }
   }
 
-  const merged = mergeJobs(existing, kept, today, cfg.keepDays);
+  const merged = mergeJobs(existing, kept, today, cfg.keepDays, cfg.staleAfterDays);
+  const stillThere = new Set(merged.flatMap(idsOf));
+  const removed = existing.filter((e) => !idsOf(e).some((id) => stillThere.has(id))).length;
   const newToday = merged.filter((j) => j.firstSeen === today).length;
 
   mkdirSync(dirname(dataPath), { recursive: true });
@@ -212,6 +216,7 @@ async function main() {
   console.log(`Fetched ${raw.length}, unique ${unique.length}, kept ${kept.length}, new today ${newToday}, stored ${merged.length}`);
   console.log(`Full text: ${detailCalls} reads (${readNew} new, ${readBacklog} backlog, ${failed} failed), ${unreadLeft} still unread, ${merged.filter((j) => j.detail).length} of ${merged.length} entries read in full`);
   console.log('Dropped:', JSON.stringify(stats));
+  console.log(`Removed ${removed} stored entries that are closed or have not been returned for ${cfg.staleAfterDays} days`);
   if (errors.length) console.warn('Errors:\n' + errors.join('\n'));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `new_count=${newToday}\n`);
   if (errors.length && !kept.length && !existing.length) process.exitCode = 1;

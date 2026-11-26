@@ -587,6 +587,36 @@ function importTracker(file) {
   reader.readAsText(file);
 }
 
+// ---------- appearance: match the phone, or choose light or dark ----------
+// The saved value is a plain string, because the script in the page head reads it before anything else runs.
+
+const rootEl = document.documentElement;
+const phoneDark = window.matchMedia('(prefers-color-scheme: dark)');
+const readTheme = () => { try { const t = localStorage.getItem('sr.theme'); return t === 'light' || t === 'dark' ? t : 'auto'; } catch { return 'auto'; } };
+
+// The browser bar takes its colour from the header paint, so it follows whichever theme is showing.
+function syncThemeColour() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const colour = getComputedStyle(rootEl).getPropertyValue('--paint-4').trim();
+  if (meta && colour) meta.setAttribute('content', colour);
+}
+
+function applyTheme(choice) {
+  if (choice === 'light' || choice === 'dark') rootEl.setAttribute('data-theme', choice); else rootEl.removeAttribute('data-theme');
+  syncThemeColour();
+}
+
+applyTheme(readTheme());
+document.querySelectorAll('input[name="theme"]').forEach((r) => {
+  r.checked = r.value === readTheme();
+  r.addEventListener('change', () => {
+    if (!r.checked) return;
+    try { if (r.value === 'auto') localStorage.removeItem('sr.theme'); else localStorage.setItem('sr.theme', r.value); } catch { /* private mode */ }
+    applyTheme(r.value);
+  });
+});
+phoneDark.addEventListener('change', syncThemeColour);   // matters when the choice is "match my phone"
+
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => show(b.dataset.tab)));
 ['q', 'f-remote', 'f-pay', 'f-score'].forEach((id) => $(id).addEventListener('input', renderAll));
 $('refresh').addEventListener('click', load);

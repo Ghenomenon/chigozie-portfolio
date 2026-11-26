@@ -163,3 +163,44 @@ test('adverts read in full keep their sponsorship reading on later runs', () => 
   assert.ok(b.data.jobs.every((j) => j.sponsorship === 'offered' && j.detail === true));
   assert.deepEqual(b.data.jobs.map((j) => j.summary), a.data.jobs.map((j) => j.summary));
 });
+
+test('entries Reed stops returning are kept for three days and then removed, while the rest stay', () => {
+  const s = session();
+  const day = (iso, extra = {}) => s.run({ FEED_TODAY: iso, ...extra });
+  const first = day('2026-11-20');
+  const total = first.data.jobs.length;
+  const chefs = first.data.jobs.filter((j) => j.title === 'Chef').length;
+  assert.ok(chefs > 10, `chef entries exist (${chefs})`);
+
+  const two = day('2026-11-22', { MOCK_NO_CHEF: '1' });
+  assert.equal(two.data.jobs.length, total, 'two days unseen: nothing removed yet');
+  assert.match(two.r.stdout, /Removed 0 stored entries/);
+
+  const three = day('2026-11-23', { MOCK_NO_CHEF: '1' });
+  assert.equal(three.data.jobs.length, total, 'three days unseen: still inside the grace');
+
+  const five = day('2026-11-24', { MOCK_NO_CHEF: '1' });
+  assert.equal(five.data.jobs.filter((j) => j.title === 'Chef').length, 0, 'four days unseen: chefs removed');
+  assert.equal(five.data.jobs.length, total - chefs, 'and nothing else');
+  assert.match(five.r.stdout, new RegExp(`Removed ${chefs} stored entries`));
+});
+
+test('a closed advert never enters the feed', () => {
+  const s = session();
+  const open = s.run();
+  assert.ok(open.data.jobs.some((j) => j.title === 'Care Assistant'));
+  const closed = session().run({ MOCK_EXPIRED: '1' });
+  assert.equal(closed.r.status, 0);
+  assert.ok(!closed.data.jobs.some((j) => j.title === 'Care Assistant'), 'adverts past their closing date are dropped on arrival');
+  assert.match(closed.r.stdout, /"expired":\d+/);
+  assert.ok(closed.data.jobs.some((j) => j.title === 'Support Worker'), 'the rest of the feed is untouched');
+});
+
+test('an entry returned every day is never removed', () => {
+  const s = session();
+  s.run({ FEED_TODAY: '2026-11-20' });
+  let last;
+  for (const d of ['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26']) last = s.run({ FEED_TODAY: d });
+  assert.ok(last.data.jobs.some((j) => j.title === 'Support Worker'));
+  assert.ok(last.data.jobs.every((j) => j.lastSeen === '2026-11-26'));
+});

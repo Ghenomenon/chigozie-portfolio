@@ -1,5 +1,5 @@
 // Cache the app shell. Always try the network first for the job list so the data is fresh.
-const CACHE = 'job-radar-v6';
+const CACHE = 'job-radar-v7';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'fonts/archivo-wdth.woff2', 'fonts/bricolage-wght.woff2', 'cv.md'];
 
 self.addEventListener('install', (e) => {
