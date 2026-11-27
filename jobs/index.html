@@ -216,8 +216,18 @@
         <div id="doc-area" hidden>
           <div id="kw-box" class="kw-box" hidden>
             <p class="kw-head"><strong>Advert keywords</strong> <span id="kw-count"></span></p>
+            <p class="small muted kw-help">Tap a keyword to use it or leave it out.</p>
             <div id="kw-list" class="chips"></div>
+            <div class="kw-add">
+              <input id="kw-new" type="text" placeholder="Add your own keyword" aria-label="Add your own keyword" autocomplete="off">
+              <button type="button" id="kw-new-btn" class="btn">Add</button>
+            </div>
             <p id="kw-note" class="small muted"></p>
+            <div class="row">
+              <button type="button" id="kw-skills" class="btn">Add to skills</button>
+              <button type="button" id="kw-rewrite" class="btn primary">Rewrite with Claude</button>
+            </div>
+            <p id="kw-action-note" class="small muted" role="status"></p>
           </div>
           <div class="doc-tabs" role="group" aria-label="Document">
             <button type="button" data-doc="cv" class="on" aria-pressed="true">CV</button>

@@ -32,7 +32,10 @@ Each role has an Apply button. It opens a sheet with three steps. Tap a step to 
 2. **Documents.** Your tailored CV and cover letter. Copy the prompt, open Claude, then paste Claude's whole reply back. The app splits it into the CV and the letter.
    - Edit either one in the app. Copy it, or save it as a PDF through the phone's print menu.
    - **Keywords come first.** Claude lists the advert's 10 to 15 most important keywords, then uses the advert's exact wording in your CV and letter wherever your CV supports it, in the profile, the skills and the first bullet points. It never adds a keyword your CV does not support.
-   - The Advert keywords panel shows each one: ✓ in your tailored CV, ! your CV supports it but the tailored CV does not use the word yet, – not in your CV. It counts how many supported keywords are in, names the missing ones, and updates as you edit.
+   - The Advert keywords panel lets you choose. Keywords your CV supports start chosen. The rest start left out, and you can switch any of them on, or add your own. Use one your CV does not show only if it is true.
+   - Each chip shows ✓ (chosen and in your tailored CV), + (chosen, not in it yet) or – (left out). The count and the list of missing keywords update as you edit.
+   - **Add to skills** puts the missing chosen keywords into the CV's skills section at once, or adds a Key skills section if there is none.
+   - **Rewrite with Claude** works the chosen keywords into the CV and letter properly, keeping every fact from your CV. Keywords you switched on yourself are passed as ones you confirm are true. Without an API key, this button copies the rewrite prompt for Claude, and Paste reply brings the result back with your choices kept.
    - "Check before you send" lists what your CV does not cover and anything Claude was unsure about.
    - The documents are saved on the phone with the role. Opening Apply again goes straight to them.
 3. **Apply.** Open the advert and send the application on the employer's site. The app never sends anything. Then tap I have applied. The date goes into the tracker.

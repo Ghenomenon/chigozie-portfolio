@@ -10,7 +10,7 @@ import {
   expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
   placeCoords, milesBetween, distanceMiles,
   nameHash, packRegister, registerHas, guessFromUrl, manualJob,
-  docsPrompt, splitDocs, mdToHtml, DOC_MARKERS, parseKeywords, keywordsIn,
+  docsPrompt, splitDocs, mdToHtml, DOC_MARKERS, parseKeywords, keywordsIn, addToSkills, keywordsPrompt,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -848,4 +848,25 @@ test('the keyword list is read in the forms Claude tends to write it', () => {
 test('keywords are checked against the tailored CV, ignoring case and spacing', () => {
   const k = keywordsIn('Built SQL reports in power  bi.', [{ word: 'SQL', supported: true }, { word: 'Power BI', supported: true }, { word: 'Tableau', supported: false }]);
   assert.deepEqual(k.map((x) => x.found), [true, true, false]);
+});
+
+test('chosen keywords are added to the skills section the CV already has', () => {
+  const bullets = addToSkills('# Jane\n\n## Skills\n- SQL\n- Excel\n\n## Experience\n- Reports', ['Tableau', 'sql', 'Power BI']);
+  assert.equal(bullets.text, '# Jane\n\n## Skills\n- SQL\n- Excel\n- Tableau\n- Power BI\n\n## Experience\n- Reports');
+  assert.deepEqual(bullets.added, ['Tableau', 'Power BI'], 'SQL is already there, in any case');
+  assert.equal(addToSkills('# Jane\n\n**Skills**\nSQL, Excel.\n\n## Experience\nx', ['Tableau']).text, '# Jane\n\n**Skills**\nSQL, Excel, Tableau\n\n## Experience\nx', 'a comma list grows');
+});
+
+test('without a skills section, one is added after the opening part of the CV', () => {
+  assert.equal(addToSkills('# Jane\nProfile text\n## Experience\nx', ['Tableau']).text, '# Jane\nProfile text\n\n## Key skills\n- Tableau\n\n## Experience\nx');
+  assert.equal(addToSkills('Plain CV', ['Tableau']).text, 'Plain CV\n\n## Key skills\n- Tableau');
+  assert.deepEqual(addToSkills('SQL', ['SQL']), { text: 'SQL', added: [] });
+});
+
+test('the rewrite prompt keeps the facts and separates keywords the person vouches for', () => {
+  const p = keywordsPrompt({ job: { title: 'Analyst', company: 'Acme' }, cv: 'ORIGINAL', tailoredCv: 'TAILORED', letter: 'LETTER', keywords: [{ word: 'SQL', confirmed: false }, { word: 'Tableau', confirmed: true }] });
+  assert.ok(p.includes('Supported by my CV: SQL'));
+  assert.ok(p.includes('I confirm these are true for me, though my CV does not show them yet: Tableau'));
+  for (const part of ['ORIGINAL', 'TAILORED', 'LETTER', 'Do not invent', DOC_MARKERS.cv, DOC_MARKERS.letter]) assert.ok(p.includes(part), part);
+  assert.ok(!keywordsPrompt({ job: { title: 'A', company: 'B' }, keywords: [{ word: 'SQL', confirmed: false }] }).includes('I confirm'), 'no vouching line when there is nothing to vouch for');
 });

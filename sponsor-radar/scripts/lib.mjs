@@ -654,6 +654,74 @@ export function keywordsIn(text, keywords) {
   return keywords.map((k) => ({ ...k, found: t.includes(k.word.toLowerCase().replace(/\s+/g, ' ')) }));
 }
 
+// Adds keywords to the CV's skills section, or adds a "Key skills" section under the first heading when there is
+// none. Keywords already in the CV are left alone. Returns the new text and the words it added.
+export function addToSkills(cv, words) {
+  const text = String(cv || '').replace(/\r\n/g, '\n');
+  const lower = text.toLowerCase().replace(/\s+/g, ' ');
+  const missing = [...new Set(words.map((w) => String(w).trim()).filter(Boolean))].filter((w) => !lower.includes(w.toLowerCase().replace(/\s+/g, ' ')));
+  if (!missing.length) return { text, added: [] };
+  const lines = text.split('\n');
+  const head = lines.findIndex((l) => /^\s*(#{1,4}\s*|\*\*)?[^#\n]*\b(skills|key skills|technical skills|core skills|competencies)\b/i.test(l) && /^\s*(#{1,4}|\*\*)/.test(l));
+  if (head >= 0) {
+    // the end of that section: the next heading, or the end of the CV
+    let end = lines.findIndex((l, i) => i > head && /^\s*#{1,4}\s/.test(l));
+    if (end < 0) end = lines.length;
+    while (end > head + 1 && !lines[end - 1].trim()) end -= 1;
+    const bullets = lines.slice(head + 1, end).some((l) => /^\s*[-*•]\s/.test(l));
+    if (bullets) lines.splice(end, 0, ...missing.map((w) => `- ${w}`));
+    else if (end > head + 1) lines[end - 1] = `${lines[end - 1].replace(/[.\s]+$/, '')}, ${missing.join(', ')}`;   // a comma list: add to it
+    else lines.splice(end, 0, missing.join(', '));
+    return { text: lines.join('\n'), added: missing };
+  }
+  const first = lines.findIndex((l) => /^\s*#{1,4}\s/.test(l));
+  const section = ['', '## Key skills', ...missing.map((w) => `- ${w}`), ''];
+  if (first < 0) return { text: `${text.trim()}\n${section.join('\n')}`.trim(), added: missing };
+  // after the name heading and any short block under it (contact line, profile)
+  let at = first + 1;
+  while (at < lines.length && !/^\s*#{1,4}\s/.test(lines[at])) at += 1;
+  lines.splice(at, 0, ...section);
+  return { text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), added: missing };
+}
+
+// Asks Claude to work the chosen keywords into the CV and letter it already wrote. `confirmed` keywords are ones the
+// person says are true even though their CV does not show them.
+export function keywordsPrompt({ job, cv = '', tailoredCv = '', letter = '', keywords = [] }) {
+  const backed = keywords.filter((k) => !k.confirmed).map((k) => k.word);
+  const confirmed = keywords.filter((k) => k.confirmed).map((k) => k.word);
+  return [
+    `Revise my tailored CV and cover letter for ${job.title} at ${job.company}.`,
+    '',
+    'USE THESE KEYWORDS, WITH THIS EXACT WORDING',
+    backed.length ? `Supported by my CV: ${backed.join(', ')}` : null,
+    confirmed.length ? `I confirm these are true for me, though my CV does not show them yet: ${confirmed.join(', ')}. Add them to the skills section, and to a role only where my CV already describes related work.` : null,
+    '',
+    'RULES',
+    '- Work each keyword in where it fits naturally: the profile, the skills section, and the first bullet points of the most relevant roles.',
+    '- Do not invent employers, dates, results, numbers or qualifications. Keep everything else as it is unless a keyword needs it.',
+    '- Plain, direct British English.',
+    '',
+    'MY ORIGINAL CV, FOR THE FACTS',
+    cv.trim(),
+    '',
+    'THE TAILORED CV TO REVISE',
+    tailoredCv.trim(),
+    '',
+    'THE COVER LETTER TO REVISE',
+    letter.trim(),
+    '',
+    'REPLY IN EXACTLY THIS FORMAT',
+    DOC_MARKERS.keywords,
+    '(each keyword, one per line, as "- keyword: used")',
+    DOC_MARKERS.cv,
+    '(the revised CV in markdown)',
+    DOC_MARKERS.letter,
+    '(the revised cover letter)',
+    DOC_MARKERS.check,
+    '(anything I should check, as bullets)',
+  ].filter((l) => l !== null).join('\n');
+}
+
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // Enough markdown for a CV: headings, bullet lists, bold, italic and paragraphs. Everything is escaped first.

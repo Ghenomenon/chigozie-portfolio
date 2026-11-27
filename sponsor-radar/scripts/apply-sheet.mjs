@@ -5,7 +5,7 @@
 // The app passes in what differs: where things are stored, how a job is described, and (Job Radar) a writer that
 // calls Claude directly. Without a writer, the sheet uses copy and paste with claude.ai.
 
-import { docsPrompt, splitDocs, mdToHtml, keywordsIn } from './lib.mjs';
+import { docsPrompt, splitDocs, mdToHtml, keywordsIn, addToSkills, keywordsPrompt } from './lib.mjs';
 
 const READ_REASONS = {
   'bad-url': 'That link is not valid. Add a screenshot instead.',
@@ -39,7 +39,8 @@ export function initApplySheet(hooks) {
   let advertText = '';
   let shots = [];
   let shotUrls = [];
-  let docs = { cv: '', letter: '', check: '', keywords: [] };
+  let docs = { cv: '', letter: '', check: '', keywords: [], chosen: null };
+  let rewriting = false;   // a keyword rewrite prompt was copied, so the next pasted reply keeps the keyword choices
   let docTab = 'cv';
   let saveTimer = null;
 
@@ -109,23 +110,96 @@ export function initApplySheet(hooks) {
     }, 300);
   }
 
-  // The advert's keywords, checked live against the tailored CV. Missing ones the CV supports are flagged.
+  // The advert's keywords, checked live against the tailored CV. The person chooses which to use: those the CV
+  // supports start chosen, the others start left out, and any of them can be switched on or off, or added.
+  const chosenSet = () => new Set(docs.chosen || (docs.keywords || []).filter((k) => k.supported).map((k) => k.word));
+
   function showKeywords() {
     const list = keywordsIn(docs.cv, docs.keywords || []);
     $('kw-box').hidden = !list.length;
     if (!list.length) return;
-    const usable = list.filter((k) => k.supported);
-    const inCv = usable.filter((k) => k.found).length;
-    $('kw-count').textContent = `${inCv} of ${usable.length} in your CV`;
+    const chosen = chosenSet();
+    const picked = list.filter((k) => chosen.has(k.word));
+    const inCv = picked.filter((k) => k.found).length;
+    $('kw-count').textContent = `${picked.length} chosen, ${inCv} in your CV`;
     $('kw-list').replaceChildren(...list.map((k) => {
-      const chip = document.createElement('span');
-      chip.className = `chip ${k.found ? 'good' : k.supported ? 'warn' : 'off'}`;
-      chip.textContent = `${k.found ? '✓' : k.supported ? '!' : '–'} ${k.word}`;
-      chip.title = k.found ? 'In your tailored CV' : k.supported ? 'Your CV supports this, but the tailored CV does not use the word yet' : 'Not in your CV. Do not add it unless it is true';
+      const on = chosen.has(k.word);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `chip kw ${on ? (k.found ? 'good' : 'warn') : 'off'}`;
+      chip.setAttribute('aria-pressed', String(on));
+      chip.textContent = `${on ? (k.found ? '✓' : '+') : '–'} ${k.word}`;
+      chip.title = !on ? 'Left out. Tap to use it' : k.found ? 'In your tailored CV' : 'Chosen, not in the tailored CV yet';
+      chip.addEventListener('click', () => {
+        const c = chosenSet();
+        if (c.has(k.word)) c.delete(k.word); else c.add(k.word);
+        docs.chosen = [...c];
+        persist();
+        showKeywords();
+      });
       return chip;
     }));
-    const gaps = usable.filter((k) => !k.found).map((k) => k.word);
-    $('kw-note').textContent = gaps.length ? `Add where true: ${gaps.join(', ')}.` : 'Every keyword your CV supports is in it.';
+    const missing = picked.filter((k) => !k.found).map((k) => k.word);
+    const unbacked = picked.filter((k) => !k.supported).map((k) => k.word);
+    const notes = [];
+    if (missing.length) notes.push(`Not in the CV yet: ${missing.join(', ')}.`);
+    else notes.push('Every chosen keyword is in your CV.');
+    if (unbacked.length) notes.push(`Your CV does not show ${unbacked.join(', ')}. Use ${unbacked.length > 1 ? 'them' : 'it'} only if true.`);
+    $('kw-note').textContent = notes.join(' ');
+    $('kw-skills').disabled = !missing.length;
+    $('kw-rewrite').disabled = !picked.length || !getCv().trim();
+    $('kw-rewrite').textContent = writer && writerReady() ? 'Rewrite with Claude' : 'Copy rewrite prompt';
+  }
+
+  function chosenKeywords() {
+    const chosen = chosenSet();
+    return (docs.keywords || []).filter((k) => chosen.has(k.word)).map((k) => ({ word: k.word, confirmed: !k.supported }));
+  }
+
+  function addKeyword() {
+    const word = $('kw-new').value.trim().replace(/\s+/g, ' ').slice(0, 60);
+    if (!word) return;
+    if (!(docs.keywords || []).some((k) => k.word.toLowerCase() === word.toLowerCase())) docs.keywords = [...(docs.keywords || []), { word, supported: false, own: true }];
+    const c = chosenSet(); c.add((docs.keywords.find((k) => k.word.toLowerCase() === word.toLowerCase()) || { word }).word);
+    docs.chosen = [...c];
+    $('kw-new').value = '';
+    persist();
+    showKeywords();
+  }
+
+  function keywordsToSkills() {
+    const { text, added } = addToSkills(docs.cv, chosenKeywords().map((k) => k.word));
+    if (!added.length) return;
+    docs.cv = text;
+    persist();
+    docTab = 'cv';
+    showDoc();
+    $('kw-action-note').textContent = `Added to your skills: ${added.join(', ')}. Read the CV to check they sit well.`;
+  }
+
+  async function rewriteWithKeywords() {
+    const d = describe(job);
+    const text = keywordsPrompt({ job: d, cv: getCv(), tailoredCv: docs.cv, letter: docs.letter, keywords: chosenKeywords() });
+    if (writer && writerReady()) {
+      const btn = $('kw-rewrite');
+      btn.disabled = true; btn.textContent = 'Rewriting…';
+      $('kw-action-note').textContent = 'Claude is working your keywords into the CV and letter.';
+      try { useReply(await writer({ prompt: text, images: [] }), 'kw-action-note', { keepKeywords: true }); }
+      catch (e) { $('kw-action-note').textContent = e && e.userMessage ? e.userMessage : 'Rewriting failed. Try again.'; }
+      showKeywords();
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      rewriting = true;
+      $('kw-action-note').textContent = 'Copied. Paste it into Claude, then copy the whole reply and tap Paste reply below.';
+    } catch {
+      $('prompt-preview').value = text;
+      $('prompt-preview').closest('details').open = true;
+      $('prompt-preview').select();
+      rewriting = true;
+      $('kw-action-note').textContent = 'Copy was blocked. The prompt is selected under See the prompt. Copy it from the menu.';
+    }
   }
 
   function showDoc() {
@@ -161,10 +235,13 @@ export function initApplySheet(hooks) {
     showDoc();
   }
 
-  function useReply(reply, noteId) {
+  function useReply(reply, noteId, { keepKeywords = rewriting } = {}) {
     const parts = splitDocs(reply);
     if (!parts) { $(noteId).textContent = 'I could not find the CV in that reply. Copy the whole reply from Claude and try again.'; return false; }
-    docs = parts;
+    docs = keepKeywords
+      ? { ...parts, keywords: docs.keywords, chosen: docs.chosen, check: parts.check || docs.check }
+      : { ...parts, chosen: null };
+    rewriting = false;
     docTab = 'cv';
     persist();
     showDoc();
@@ -258,6 +335,10 @@ export function initApplySheet(hooks) {
   for (const b of document.querySelectorAll('.doc-tabs [data-doc]')) b.addEventListener('click', () => { docTab = b.dataset.doc; showDoc(); });
   $('doc').addEventListener('input', () => { docs[docTab] = $('doc').value; persist(); if (docTab === 'cv') showKeywords(); });
   $('doc-copy').addEventListener('click', copyDoc);
+  $('kw-new-btn').addEventListener('click', addKeyword);
+  $('kw-new').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addKeyword(); } });
+  $('kw-skills').addEventListener('click', keywordsToSkills);
+  $('kw-rewrite').addEventListener('click', rewriteWithKeywords);
   $('doc-pdf').addEventListener('click', printDoc);
   $('mark-applied').addEventListener('click', () => { if (job) { markApplied(job); refreshSend(); $('applied-note').textContent = 'Marked as Applied. It is in your Tracker.'; } });
   $('apply').addEventListener('close', () => {
@@ -271,7 +352,8 @@ export function initApplySheet(hooks) {
     job = j;
     shots = [];
     advertText = j.summary || '';
-    docs = { cv: '', letter: '', check: '', keywords: [], ...(load()[j.id] || {}) };
+    docs = { cv: '', letter: '', check: '', keywords: [], chosen: null, ...(load()[j.id] || {}) };
+    rewriting = false;
     docTab = 'cv';
     const d = describe(j);
     $('apply-title').textContent = d.title;
