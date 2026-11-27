@@ -37,46 +37,47 @@ async function tasksScreen() {
 const DASH = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
-:root{--cy:#00f0ff;--mg:#ff3df0;--lm:#39ff88;--hot:#ff4d6d;--dim:#9fb4ff}
+:root{--pk:#ff1f8e;--rose:#e6007a;--gr:#0e9f5a;--red:#d9042b;--plum:#4a0d33;--mauve:#a0467a}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;color:#fff;font-family:-apple-system,system-ui,sans-serif;
-background:linear-gradient(135deg,#0a0f2e,#2a0a4a,#06323f,#0a0f2e);background-size:300% 300%;
+body{margin:0;min-height:100vh;color:var(--plum);font-family:-apple-system,system-ui,sans-serif;
+background:linear-gradient(135deg,#fff6fb,#ffdcee,#fbe4ff,#fff6fb);background-size:300% 300%;
 animation:bg 14s ease infinite;padding:calc(env(safe-area-inset-top) + 18px) 18px 40px}
 @keyframes bg{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-.top{display:flex;justify-content:space-between;align-items:center;font-size:13px;letter-spacing:.08em}
-.tag{color:var(--mg);font-weight:800;text-shadow:0 0 10px var(--mg)}
-.ph{color:var(--cy);font-weight:700}
-.ring{position:relative;width:260px;height:260px;margin:22px auto 8px}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:15px;letter-spacing:.08em}
+.tag{color:var(--rose);font-weight:800;text-shadow:0 0 12px rgba(255,31,142,.6)}
+.ph{color:var(--pk);font-weight:800}
+.ring{position:relative;width:280px;height:280px;margin:22px auto 8px}
 .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
-.track{fill:none;stroke:rgba(159,180,255,.18);stroke-width:12}
-.prog{fill:none;stroke:var(--cy);stroke-width:12;stroke-linecap:round;stroke-dasharray:527.8;stroke-dashoffset:527.8;
-transition:stroke-dashoffset 2.2s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 0 8px var(--cy)) drop-shadow(0 0 18px var(--mg))}
+.track{fill:none;stroke:rgba(255,31,142,.15);stroke-width:12}
+.prog{fill:none;stroke:var(--pk);stroke-width:12;stroke-linecap:round;stroke-dasharray:527.8;stroke-dashoffset:527.8;
+transition:stroke-dashoffset 2.2s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 0 8px var(--pk)) drop-shadow(0 0 18px rgba(255,92,176,.8))}
 .halo{position:absolute;inset:18px;border-radius:50%;animation:pulse 3s ease-in-out infinite;
-box-shadow:0 0 40px rgba(0,240,255,.35),inset 0 0 40px rgba(255,61,240,.25)}
-@keyframes pulse{0%,100%{opacity:.45;transform:scale(.97)}50%{opacity:1;transform:scale(1.03)}}
+box-shadow:0 0 40px rgba(255,31,142,.3),inset 0 0 40px rgba(255,150,210,.4)}
+@keyframes pulse{0%,100%{opacity:.5;transform:scale(.97)}50%{opacity:1;transform:scale(1.03)}}
 .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.days{font-size:76px;font-weight:900;color:var(--cy);text-shadow:0 0 14px var(--cy),0 0 34px var(--cy);line-height:1}
-.dl{font-size:15px;font-weight:700;margin-top:4px}
-.bank{text-align:center;font-size:20px;font-weight:800;color:var(--lm);text-shadow:0 0 12px var(--lm);margin-bottom:18px}
+.days{font-size:96px;font-weight:900;color:var(--pk);text-shadow:0 0 16px rgba(255,31,142,.7),0 0 38px rgba(255,92,176,.7);line-height:1}
+.dl{font-size:20px;font-weight:800;margin-top:4px}
+.bank{text-align:center;font-size:24px;font-weight:800;color:var(--gr);text-shadow:0 0 12px rgba(14,159,90,.35);margin-bottom:18px}
 .chips{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:22px}
-.chip{border:1px solid rgba(0,240,255,.5);border-radius:14px;padding:10px 8px;text-align:center;
-box-shadow:0 0 14px rgba(0,240,255,.25);background:rgba(10,15,46,.55);animation:rise .7s both}
-.chip b{display:block;font-size:17px;color:#fff}
-.chip span{font-size:11px;color:var(--dim)}
-.chip.bad{border-color:var(--hot);box-shadow:0 0 14px rgba(255,77,109,.5)}
-.chip.bad b{color:var(--hot);text-shadow:0 0 10px var(--hot)}
-h2{font-size:12px;letter-spacing:.14em;color:var(--mg);text-shadow:0 0 10px var(--mg);margin:0 0 10px}
-.task{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;margin-bottom:10px;border-radius:14px;
-background:rgba(10,15,46,.6);border:1px solid rgba(255,61,240,.5);box-shadow:0 0 14px rgba(255,61,240,.25);
+.chip{border:1.5px solid rgba(255,31,142,.55);border-radius:16px;padding:12px 8px;text-align:center;
+box-shadow:0 0 16px rgba(255,31,142,.3);background:rgba(255,255,255,.78);animation:rise .7s both}
+.chip b{display:block;font-size:17px;white-space:nowrap;color:var(--plum)}
+.chip span{font-size:12px;color:var(--mauve)}
+.chip.bad{border-color:var(--red);box-shadow:0 0 16px rgba(217,4,43,.4)}
+.chip.bad b{color:var(--red);text-shadow:0 0 10px rgba(217,4,43,.4)}
+h2{font-size:15px;letter-spacing:.14em;color:var(--rose);text-shadow:0 0 10px rgba(255,31,142,.5);margin:0 0 10px}
+.task{display:flex;gap:10px;align-items:flex-start;padding:14px 16px;margin-bottom:12px;border-radius:16px;
+background:rgba(255,255,255,.85);border:1.5px solid rgba(255,31,142,.5);box-shadow:0 0 16px rgba(255,31,142,.28);
 opacity:0;animation:slide .6s forwards}
-.task.done{border-color:var(--lm);box-shadow:0 0 14px rgba(57,255,136,.35);color:var(--lm)}
-.task i{font-style:normal;font-size:18px;line-height:1.2}
-.task b{display:block;font-size:15px}
-.task small{display:block;font-size:12px;color:var(--dim);margin-top:3px;line-height:1.35}
-.task.done small{color:rgba(57,255,136,.75)}
+.task.done{border-color:var(--gr);box-shadow:0 0 16px rgba(14,159,90,.35);color:var(--gr)}
+.task i{font-style:normal;font-size:22px;line-height:1.1;color:var(--pk)}
+.task.done i{color:var(--gr)}
+.task b{display:block;font-size:18px}
+.task small{display:block;font-size:14px;color:var(--mauve);margin-top:4px;line-height:1.35}
+.task.done small{color:rgba(14,159,90,.85)}
 @keyframes slide{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-.visa{text-align:center;font-size:12px;color:var(--dim);margin-top:18px}
+.visa{text-align:center;font-size:13px;color:var(--mauve);margin-top:18px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.task{opacity:1}}
 </style></head><body>
 <div class="top"><span class="tag">£100K GOAL</span><span class="ph" id="ph"></span></div>
