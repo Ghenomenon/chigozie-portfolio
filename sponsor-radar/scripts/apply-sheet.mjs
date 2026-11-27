@@ -1,7 +1,8 @@
-// The Apply sheet, shared by Sponsor Radar and Job Radar. Three steps:
-//   1. Advert     the advert text, read from its link or added as screenshots
-//   2. Documents  a tailored CV and cover letter, written by Claude and edited here
-//   3. Apply      open the advert, send it, mark it as applied
+// The Apply pages, shared by Sponsor Radar and Job Radar. Apply opens a full-screen page with three rows:
+//   1. The advert             its text, read from the link or added as screenshots
+//   2. CV and cover letter    written by Claude and edited here, with keywords and checks on their own pages
+//   3. Send your application  open the advert, send it, mark it as applied
+// Each row opens its own page, one task at a time, with a back button.
 // The app passes in what differs: where things are stored, how a job is described, and (Job Radar) a writer that
 // calls Claude directly. Without a writer, the sheet uses copy and paste with claude.ai.
 
@@ -17,7 +18,8 @@ const READ_REASONS = {
   'fetch-failed': 'The reader could not open that page. Try again, or add a screenshot.',
 };
 
-const STEPS = ['advert', 'docs', 'send'];
+const PAGES = ['home', 'advert', 'docs', 'write', 'keywords', 'check', 'send'];
+const TITLES = { home: 'Apply', advert: 'The advert', docs: 'CV and cover letter', write: 'Write with Claude', keywords: 'Keywords', check: 'Checks', send: 'Send' };
 
 export function initApplySheet(hooks) {
   const {
@@ -44,16 +46,38 @@ export function initApplySheet(hooks) {
   let docTab = 'cv';
   let saveTimer = null;
 
-  // ---------- steps ----------
-  function go(step) {
-    for (const s of STEPS) {
-      $(`step-${s}`).hidden = s !== step;
-      const b = document.querySelector(`.stepper [data-step="${s}"]`);
-      b.classList.toggle('on', s === step);
-      if (s === step) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
-    }
-    if (step === 'docs') refreshDocs();
-    $('apply').querySelector('.sheet').scrollTop = 0;
+  // ---------- pages ----------
+  let stack = ['home'];
+  let pendingPrompt = null;   // a keyword rewrite prompt waiting on the Write page, instead of the first prompt
+
+  function render(page) {
+    for (const p of PAGES) $(`ap-${p}`).hidden = p !== page;
+    const el = $(`ap-${page}`);
+    el.classList.remove('slide'); void el.offsetWidth; el.classList.add('slide');
+    const prev = stack[stack.length - 2];
+    $('ap-back-label').textContent = prev ? TITLES[prev] : 'Close';
+    $('ap-crumb').textContent = page === 'home' || !job ? '' : describe(job).title;
+    if (page === 'home') refreshHome();
+    if (page === 'docs') refreshDocs();
+    if (page === 'write') refreshWrite();
+    if (page === 'keywords') showKeywords();
+    $('apply').scrollTop = 0;
+    const h = el.querySelector('.ap-h'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  }
+  function go(page) { stack.push(page); render(page); }
+  function back() { if (stack.length > 1) { stack.pop(); render(stack[stack.length - 1]); } else $('apply').close(); }
+  function goDocs() { stack = ['home', 'docs']; render('docs'); }   // after writing, land on the documents
+
+  function refreshHome() {
+    const chars = advertText.trim().length;
+    $('row-advert').textContent = chars || shots.length
+      ? [chars ? `${chars.toLocaleString('en-GB')} characters` : null, shots.length ? `${shots.length} screenshot${shots.length > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')
+      : 'Not read yet';
+    $('row-docs').textContent = docs.cv ? `Written${docs.updated ? ` ${docs.updated}` : ''}. Tap to read and edit` : 'Not written yet';
+    const when = appliedOn(job);
+    $('row-send').textContent = when ? `Applied on ${when}` : 'Not applied yet';
+    const marks = { advert: chars || shots.length, docs: docs.cv, send: when };
+    for (const b of document.querySelectorAll('#ap-home .ap-row')) b.querySelector('.ap-n').classList.toggle('done', Boolean(marks[b.dataset.go]));
   }
 
   // ---------- step 1: the advert ----------
@@ -117,11 +141,13 @@ export function initApplySheet(hooks) {
   function showKeywords() {
     const list = keywordsIn(docs.cv, docs.keywords || []);
     $('kw-box').hidden = !list.length;
-    if (!list.length) return;
+    $('kw-none').hidden = Boolean(list.length);
+    if (!list.length) { $('row-kw').textContent = 'None listed'; $('kw-skills').disabled = true; $('kw-rewrite').disabled = true; return; }
     const chosen = chosenSet();
     const picked = list.filter((k) => chosen.has(k.word));
     const inCv = picked.filter((k) => k.found).length;
     $('kw-count').textContent = `${picked.length} chosen, ${inCv} in your CV`;
+    $('row-kw').textContent = `${picked.length} chosen, ${inCv} in your CV`;
     $('kw-list').replaceChildren(...list.map((k) => {
       const on = chosen.has(k.word);
       const chip = document.createElement('button');
@@ -189,17 +215,10 @@ export function initApplySheet(hooks) {
       showKeywords();
       return;
     }
-    try {
-      await navigator.clipboard.writeText(text);
-      rewriting = true;
-      $('kw-action-note').textContent = 'Copied. Paste it into Claude, then copy the whole reply and tap Paste reply below.';
-    } catch {
-      $('prompt-preview').value = text;
-      $('prompt-preview').closest('details').open = true;
-      $('prompt-preview').select();
-      rewriting = true;
-      $('kw-action-note').textContent = 'Copy was blocked. The prompt is selected under See the prompt. Copy it from the menu.';
-    }
+    // copy and paste: the Write page takes over, with this prompt instead of the first one
+    pendingPrompt = text;
+    rewriting = true;
+    go('write');
   }
 
   function showDoc() {
@@ -213,26 +232,39 @@ export function initApplySheet(hooks) {
     showKeywords();
     const has = Boolean(docs.cv || docs.letter);
     $('doc-area').hidden = !has;
-    $('rewrite-head').hidden = !has;
+    $('docs-empty').hidden = has;
     const lines = (docs.check || '').split('\n').map((l) => l.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean);
-    $('check-box').hidden = !lines.length;
-    $('check-count').textContent = String(lines.length);
+    $('row-check-li').hidden = !lines.length;
+    $('row-check').textContent = `${lines.length} point${lines.length === 1 ? '' : 's'}`;
     $('check-list').replaceChildren(...lines.map((l) => { const li = document.createElement('li'); li.textContent = l; return li; }));
   }
 
+  const apiReady = () => Boolean(writer) && writerReady();
+
   function refreshDocs() {
     const noCv = !getCv().trim();
-    const api = Boolean(writer) && writerReady();
-    $('write-api').hidden = !api;
-    $('write-paste').hidden = api;
     $('need-cv').hidden = !noCv;
     $('write').disabled = noCv;
-    $('copy').disabled = noCv;
     $('key-hint').hidden = !(writer && !writerReady());
-    $('prompt-preview').value = job ? prompt() : '';
-    const canShare = shots.length && typeof navigator.canShare === 'function' && navigator.canShare({ files: shots });
-    $('share').hidden = !canShare;
     showDoc();
+  }
+
+  function refreshWrite() {
+    const text = pendingPrompt || (job ? prompt() : '');
+    $('prompt-preview').value = text;
+    $('write-intro').textContent = pendingPrompt
+      ? 'Claude works your chosen keywords into the CV and letter. Three steps in the Claude app or website.'
+      : 'Three steps in the Claude app or website.';
+    $('copy').disabled = !getCv().trim();
+    const canShare = !pendingPrompt && shots.length && typeof navigator.canShare === 'function' && navigator.canShare({ files: shots });
+    $('share').hidden = !canShare;
+  }
+
+  // Write with Claude: in the app when there is a key, otherwise the copy and paste page.
+  function startWrite() {
+    pendingPrompt = null;
+    rewriting = false;
+    if (apiReady()) write(); else go('write');
   }
 
   function useReply(reply, noteId, { keepKeywords = rewriting } = {}) {
@@ -242,38 +274,41 @@ export function initApplySheet(hooks) {
       ? { ...parts, keywords: docs.keywords, chosen: docs.chosen, check: parts.check || docs.check }
       : { ...parts, chosen: null };
     rewriting = false;
+    pendingPrompt = null;
     docTab = 'cv';
     persist();
-    showDoc();
-    $(noteId).textContent = parts.letter ? 'Done. Read both, edit anything, then go on to Apply.' : 'I found the CV but no cover letter. Ask Claude for the letter, then paste again.';
+    goDocs();
+    $('doc-note').textContent = parts.letter ? 'Done. Read both and edit anything. Then go back and send your application.' : 'I found the CV but no cover letter. Write them again to get the letter.';
     return true;
   }
 
   async function write() {
     if (!job) return;
     const btn = $('write');
-    btn.disabled = true;
+    const again = $('write-again');
+    btn.disabled = true; again.disabled = true;
     btn.textContent = 'Writing…';
-    $('write-note').textContent = 'Claude is writing your CV and cover letter. This usually takes under a minute.';
+    const note = docs.cv ? 'doc-note' : 'write-note';
+    $(note).textContent = 'Claude is writing your CV and cover letter. This usually takes under a minute.';
     try {
       const reply = await writer({ prompt: prompt(), images: shots });
-      useReply(reply, 'write-note');
+      if (!useReply(reply, note)) $(note).textContent = 'Claude\'s reply did not include a CV. Try again.';
     } catch (e) {
-      $('write-note').textContent = e && e.userMessage ? e.userMessage : 'Writing failed. Check your connection and try again.';
+      $(note).textContent = e && e.userMessage ? e.userMessage : 'Writing failed. Check your connection and try again.';
     }
-    btn.disabled = !getCv().trim();
-    btn.textContent = docs.cv ? 'Write again with Claude' : 'Write with Claude';
+    btn.disabled = !getCv().trim(); again.disabled = false;
+    btn.textContent = 'Write with Claude';
   }
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(prompt());
+      await navigator.clipboard.writeText(pendingPrompt || prompt());
       $('paste-note').textContent = shots.length ? 'Copied. Open Claude, paste it and attach your screenshot.' : 'Copied. Open Claude and paste it.';
     } catch {
       const area = $('prompt-preview');
       area.closest('details').open = true;
       area.focus(); area.select();
-      $('paste-note').textContent = 'Copy was blocked. The prompt is selected below. Copy it from the menu.';
+      $('paste-note').textContent = 'Copy was blocked. The prompt is selected under Show the prompt. Copy it from the menu.';
     }
   }
 
@@ -308,14 +343,17 @@ export function initApplySheet(hooks) {
   // ---------- step 3: apply ----------
   function refreshSend() {
     const when = job ? appliedOn(job) : null;
+    if (!$('ap-home').hidden) refreshHome();
     $('mark-applied').textContent = when ? `Applied on ${when}` : 'I have applied';
     $('mark-applied').disabled = Boolean(when);
   }
 
   // ---------- wiring ----------
-  for (const b of document.querySelectorAll('.stepper [data-step]')) b.addEventListener('click', () => go(b.dataset.step));
-  $('to-docs').addEventListener('click', () => go('docs'));
-  $('to-send').addEventListener('click', () => go('send'));
+  for (const b of document.querySelectorAll('#apply [data-go]')) b.addEventListener('click', () => go(b.dataset.go));
+  for (const b of document.querySelectorAll('#apply [data-back]')) b.addEventListener('click', back);
+  $('ap-back').addEventListener('click', back);
+  $('apply').addEventListener('cancel', (e) => { if (stack.length > 1) { e.preventDefault(); back(); } });   // Escape goes back a page first
+  $('write-again').addEventListener('click', startWrite);
   $('read-link').addEventListener('click', readFromLink);
   $('shots').addEventListener('change', (e) => {
     shots.push(...[...e.target.files].filter((f) => f.type.startsWith('image/')).slice(0, 4 - shots.length));
@@ -323,7 +361,7 @@ export function initApplySheet(hooks) {
     renderShots();
   });
   $('advert').addEventListener('input', () => { advertText = $('advert').value; advertStatus(); });
-  $('write').addEventListener('click', write);
+  $('write').addEventListener('click', startWrite);
   $('copy').addEventListener('click', copyPrompt);
   $('paste').addEventListener('click', pasteReply);
   $('reply').addEventListener('input', () => { if ($('reply').value.trim().length > 40 && useReply($('reply').value, 'paste-note')) $('reply').value = ''; });
@@ -360,12 +398,14 @@ export function initApplySheet(hooks) {
     $('apply-sub').textContent = `${d.company} · ${d.location || 'UK'}`;
     $('advert').value = advertText;
     $('open-advert').href = /^https:\/\//i.test(j.url) ? j.url : '#';
-    $('write').textContent = docs.cv ? 'Write again with Claude' : 'Write with Claude';
-    for (const id of ['write-note', 'paste-note', 'doc-note', 'applied-note']) $(id).textContent = '';
+    $('write').textContent = 'Write with Claude';
+    for (const id of ['write-note', 'paste-note', 'doc-note', 'applied-note', 'kw-action-note']) $(id).textContent = '';
     $('reply').value = '';
+    pendingPrompt = null;
     renderShots();
     refreshSend();
-    go(docs.cv ? 'docs' : 'advert');
+    stack = ['home'];
+    render('home');
     const dlg = $('apply');
     if (typeof dlg.showModal === 'function') { if (!dlg.open) dlg.showModal(); } else dlg.setAttribute('open', '');
     if (!advertText) readFromLink();

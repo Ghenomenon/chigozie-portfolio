@@ -183,104 +183,130 @@
     </form>
   </dialog>
 
-  <dialog id="apply" aria-labelledby="apply-title">
-    <form method="dialog" class="sheet">
-      <div class="sheet-head">
-        <div>
-          <h2 id="apply-title">Apply</h2>
-          <p id="apply-sub" class="muted"></p>
-        </div>
-        <button class="icon-btn dark" value="close" aria-label="Close">&times;</button>
-      </div>
+  <dialog id="apply" class="ap-dialog" aria-labelledby="ap-heading">
+    <div class="ap">
+      <header class="ap-bar">
+        <button type="button" id="ap-back" class="ap-back"><span class="ap-back-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></span><span id="ap-back-label">Close</span></button>
+        <p id="ap-crumb" class="ap-crumb"></p>
+      </header>
 
-      <nav class="stepper" aria-label="Steps">
-        <button type="button" data-step="advert"><span>1</span>Advert</button>
-        <button type="button" data-step="docs"><span>2</span>Documents</button>
-        <button type="button" data-step="send"><span>3</span>Apply</button>
-      </nav>
-
-      <section id="step-advert" class="step">
-        <p id="read-note" class="muted" role="status"></p>
-        <textarea id="advert" rows="8" aria-label="Advert text" placeholder="The advert text appears here. You can paste or edit it."></textarea>
-        <div class="row">
-          <button type="button" id="read-link" class="btn">Read from link</button>
-          <label class="btn">Add screenshot<input id="shots" type="file" accept="image/*" multiple hidden></label>
-        </div>
-        <div id="shot-list" class="thumbs"></div>
-        <button type="button" id="to-docs" class="btn wide primary">Next: CV and letter</button>
+      <section id="ap-home" class="ap-page">
+        <h2 id="apply-title" class="ap-h">Apply</h2>
+        <p id="apply-sub" class="muted"></p>
+        <ul class="ap-list">
+          <li><button type="button" class="ap-row" data-go="advert"><span class="ap-n">1</span><span class="ap-txt"><strong>The advert</strong><small id="row-advert"></small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+          <li><button type="button" class="ap-row" data-go="docs"><span class="ap-n">2</span><span class="ap-txt"><strong>CV and cover letter</strong><small id="row-docs"></small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+          <li><button type="button" class="ap-row" data-go="send"><span class="ap-n">3</span><span class="ap-txt"><strong>Send your application</strong><small id="row-send"></small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+        </ul>
       </section>
 
-      <section id="step-docs" class="step" hidden>
-        <p id="need-cv" class="note-warn" hidden>Add your CV in Settings first. Claude works only from the facts in it.</p>
+      <section id="ap-advert" class="ap-page" hidden>
+        <h2 class="ap-h">The advert</h2>
+        <p id="read-note" class="muted" role="status"></p>
+        <textarea id="advert" class="ap-text" aria-label="Advert text" placeholder="The advert text appears here. You can paste or edit it."></textarea>
+        <div id="shot-list" class="thumbs"></div>
+        <div class="ap-links">
+          <button type="button" id="read-link" class="ap-link">Read again from the link</button>
+          <label class="ap-link">Add a screenshot<input id="shots" type="file" accept="image/*" multiple hidden></label>
+        </div>
+        <div class="ap-foot"><button type="button" class="btn wide primary" data-back>Done</button></div>
+      </section>
 
+      <section id="ap-docs" class="ap-page" hidden>
+        <h2 class="ap-h">CV and cover letter</h2>
+        <p id="need-cv" class="note-warn" hidden>Add your CV in Settings first. Claude works only from the facts in it.</p>
+        <div id="docs-empty">
+          <p class="muted">Claude writes a CV and cover letter for this role from your CV and the advert. It uses the advert's keywords and never invents facts.</p>
+          <button type="button" id="write" class="btn wide primary">Write with Claude</button>
+          <p id="write-note" class="muted" role="status"></p>
+          <a id="key-hint" href="#" class="small" hidden>Write in the app instead: add your Claude API key in Settings</a>
+        </div>
         <div id="doc-area" hidden>
-          <div id="kw-box" class="kw-box" hidden>
-            <p class="kw-head"><strong>Advert keywords</strong> <span id="kw-count"></span></p>
-            <p class="small muted kw-help">Tap a keyword to use it or leave it out.</p>
-            <div id="kw-list" class="chips"></div>
-            <div class="kw-add">
-              <input id="kw-new" type="text" placeholder="Add your own keyword" aria-label="Add your own keyword" autocomplete="off">
-              <button type="button" id="kw-new-btn" class="btn">Add</button>
-            </div>
-            <p id="kw-note" class="small muted"></p>
-            <div class="row">
-              <button type="button" id="kw-skills" class="btn">Add to skills</button>
-              <button type="button" id="kw-rewrite" class="btn primary">Rewrite with Claude</button>
-            </div>
-            <p id="kw-action-note" class="small muted" role="status"></p>
-          </div>
           <div class="doc-tabs" role="group" aria-label="Document">
             <button type="button" data-doc="cv" class="on" aria-pressed="true">CV</button>
             <button type="button" data-doc="letter" aria-pressed="false">Cover letter</button>
           </div>
-          <textarea id="doc" rows="16" aria-label="Document text"></textarea>
-          <div class="row">
+          <textarea id="doc" class="ap-text" aria-label="Document text"></textarea>
+          <div class="ap-pair">
             <button type="button" id="doc-copy" class="btn">Copy</button>
             <button type="button" id="doc-pdf" class="btn">Save as PDF</button>
           </div>
           <p id="doc-note" class="muted" role="status"></p>
-          <details id="check-box" class="check-box" hidden>
-            <summary>Check before you send (<span id="check-count">0</span>)</summary>
-            <ul id="check-list"></ul>
-          </details>
+          <ul class="ap-list">
+            <li><button type="button" class="ap-row" data-go="keywords"><span class="ap-txt"><strong>Advert keywords</strong><small id="row-kw"></small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+            <li id="row-check-li"><button type="button" class="ap-row" data-go="check"><span class="ap-txt"><strong>Check before you send</strong><small id="row-check"></small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+            <li><button type="button" class="ap-row" id="write-again"><span class="ap-txt"><strong>Write them again</strong><small>Start over with Claude</small></span><span class="ap-chev" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></span></button></li>
+          </ul>
           <p class="small muted">Saved on this phone with this role. Read every line before you use it.</p>
         </div>
-        <p id="rewrite-head" class="small muted" hidden>Not right? Write them again:</p>
-        <div id="write-api">
-          <button type="button" id="write" class="btn wide primary">Write with Claude</button>
-          <p id="write-note" class="muted" role="status"></p>
-        </div>
+      </section>
 
-        <div id="write-paste">
-          <p class="muted">Claude writes both from your CV and the advert. It never invents facts.</p>
-          <div class="row three">
-            <button type="button" id="copy" class="btn">1. Copy prompt</button>
-            <a id="open-claude" class="btn" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">2. Open Claude</a>
-            <button type="button" id="paste" class="btn primary">3. Paste reply</button>
-          </div>
-          <button type="button" id="share" class="btn wide" hidden>Share prompt and screenshots to Claude</button>
-          <p id="paste-note" class="muted" role="status"></p>
-          <details id="reply-box">
-            <summary>Paste the reply by hand</summary>
-            <textarea id="reply" rows="5" aria-label="Claude's reply"></textarea>
-          </details>
-          <a id="key-hint" href="#" class="small" hidden>Write in the app instead: add your Claude API key in Settings</a>
-        </div>
-
-        <button type="button" id="to-send" class="btn wide primary">Next: apply</button>
+      <section id="ap-write" class="ap-page" hidden>
+        <h2 class="ap-h">Write with Claude</h2>
+        <p id="write-intro" class="muted">Three steps in the Claude app or website.</p>
+        <ol class="ap-steps">
+          <li>
+            <strong>Copy the prompt</strong>
+            <p class="muted">It holds the advert, your CV and the rules.</p>
+            <button type="button" id="copy" class="btn wide">Copy prompt</button>
+            <button type="button" id="share" class="btn wide" hidden>Share prompt and screenshots</button>
+          </li>
+          <li>
+            <strong>Paste it into Claude</strong>
+            <p class="muted">Wait for the whole reply, then copy all of it.</p>
+            <a id="open-claude" class="btn wide" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Open Claude</a>
+          </li>
+          <li>
+            <strong>Bring the reply back</strong>
+            <button type="button" id="paste" class="btn wide primary">Paste Claude's reply</button>
+          </li>
+        </ol>
+        <p id="paste-note" class="muted" role="status"></p>
+        <details id="reply-box">
+          <summary>Paste the reply by hand</summary>
+          <textarea id="reply" rows="5" aria-label="Claude's reply"></textarea>
+        </details>
         <details>
-          <summary>See the prompt</summary>
+          <summary>Show the prompt</summary>
           <textarea id="prompt-preview" rows="8" readonly aria-label="Prompt"></textarea>
         </details>
       </section>
 
-      <section id="step-send" class="step" hidden>
-        <p class="muted">Send your application on the employer's site. The app never sends anything for you.</p>
+      <section id="ap-keywords" class="ap-page" hidden>
+        <h2 class="ap-h">Advert keywords</h2>
+        <p class="muted">Recruiters and screening software look for the advert's exact words. Tap a keyword to use it or leave it out.</p>
+        <div id="kw-box">
+          <p id="kw-count" class="kw-count"></p>
+          <div id="kw-list" class="chips"></div>
+          <div class="kw-add">
+            <input id="kw-new" type="text" placeholder="Add your own keyword" aria-label="Add your own keyword" autocomplete="off">
+            <button type="button" id="kw-new-btn" class="btn">Add</button>
+          </div>
+          <p id="kw-note" class="small muted"></p>
+        </div>
+        <p id="kw-none" class="muted" hidden>Claude did not list keywords this time. Write the documents again to get them.</p>
+        <div class="ap-foot stack">
+          <button type="button" id="kw-rewrite" class="btn wide primary">Rewrite with Claude</button>
+          <button type="button" id="kw-skills" class="btn wide">Add to my skills section</button>
+          <p id="kw-action-note" class="small muted" role="status"></p>
+        </div>
+      </section>
+
+      <section id="ap-check" class="ap-page" hidden>
+        <h2 class="ap-h">Check before you send</h2>
+        <p class="muted">What your CV does not cover, and anything Claude was unsure about.</p>
+        <ul id="check-list" class="check-list"></ul>
+        <div class="ap-foot"><button type="button" class="btn wide primary" data-back>Done</button></div>
+      </section>
+
+      <section id="ap-send" class="ap-page" hidden>
+        <h2 class="ap-h">Send your application</h2>
+        <p class="muted">Open the advert and apply on the employer's site, with your CV and cover letter. The app never sends anything for you.</p>
         <a id="open-advert" class="btn wide" href="#" target="_blank" rel="noopener noreferrer">Open the advert</a>
         <button type="button" id="mark-applied" class="btn wide primary">I have applied</button>
         <p id="applied-note" class="muted" role="status"></p>
       </section>
-    </form>
+    </div>
   </dialog>
 
   <script src="app.js"></script>
