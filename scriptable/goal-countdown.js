@@ -1,10 +1,10 @@
 // Goal Countdown widget for Scriptable (iPhone and iPad)
 // Counts down to £100,000 of revenue by 31 Dec 2027 and shows today's tasks.
 // Name this script "Goal Countdown". Needs the "Goal Plan" script.
-// Tap the widget to open "Log Progress".
+// Tap the widget to open "Goal Home".
 
 const P = importModule("Goal Plan")
-const LOG_URL = "scriptable:///run?scriptName=Log%20Progress"
+const LOG_URL = "scriptable:///run?scriptName=Goal%20Home"
 
 const today = P.midnight(new Date())
 const data = P.load()
