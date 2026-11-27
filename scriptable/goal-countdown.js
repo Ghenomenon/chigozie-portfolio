@@ -32,10 +32,22 @@ const doneCount = tasks.filter((t, i) => isDone(i)).length
 const firstOpen = tasks.find((t, i) => !isDone(i))
 const phase = P.phaseLabel(today)
 
-const red = new Color("#c0262d")
-const ink = Color.dynamic(new Color("#10302b"), new Color("#dcefe8"))
-const soft = Color.dynamic(new Color("#4b6b64"), new Color("#93b3aa"))
-const bg = Color.dynamic(new Color("#f3f9f5"), new Color("#162825"))
+// Bright neon colours on a deep night gradient
+const cyan = new Color("#00f0ff")
+const magenta = new Color("#ff3df0")
+const lime = new Color("#39ff88")
+const hot = new Color("#ff4d6d")
+const white = new Color("#ffffff")
+const dim = new Color("#9fb4ff")
+const red = hot
+const ink = white
+const soft = dim
+
+const bgGradient = new LinearGradient()
+bgGradient.colors = [new Color("#0a0f2e"), new Color("#2a0a4a"), new Color("#06323f")]
+bgGradient.locations = [0, 0.6, 1]
+bgGradient.startPoint = new Point(0, 0)
+bgGradient.endPoint = new Point(1, 1)
 
 const w = new ListWidget()
 w.url = LOG_URL
@@ -48,12 +60,19 @@ w.refreshAfterDate = next
 
 const family = config.widgetFamily
 
-function line(stack, text, size, color, bold) {
+function glow(t, color, radius) {
+  t.shadowColor = color
+  t.shadowRadius = radius || 6
+  t.shadowOffset = new Point(0, 0)
+}
+
+function line(stack, text, size, color, bold, glowColor) {
   const t = stack.addText(text)
   t.font = bold ? Font.semiboldSystemFont(size) : Font.systemFont(size)
   t.textColor = color
   t.minimumScaleFactor = 0.6
   t.lineLimit = 1
+  if (glowColor) glow(t, glowColor, 5)
   return t
 }
 
@@ -61,9 +80,9 @@ function line(stack, text, size, color, bold) {
 function taskLines(stack, max, size) {
   const items = tasks.map((t, i) => ({ t: t.t, done: isDone(i) }))
   items.sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0))
-  if (doneCount === tasks.length) line(stack, "All done today. Log your numbers.", size, soft, false)
+  if (doneCount === tasks.length) line(stack, "All done today. Log your numbers.", size, lime, true, lime)
   items.slice(0, max).forEach(it => {
-    line(stack, (it.done ? "✓ " : "○ ") + it.t, size, it.done ? soft : ink, !it.done)
+    line(stack, (it.done ? "✓ " : "○ ") + it.t, size, it.done ? lime : white, !it.done, it.done ? lime : magenta)
     stack.addSpacer(3)
   })
   if (items.length > max) line(stack, "+" + (items.length - max) + " more", size - 1, soft, false)
@@ -74,9 +93,10 @@ function header(stack) {
   row.layoutHorizontally()
   const h = row.addText("£100K GOAL")
   h.font = Font.boldSystemFont(12)
-  h.textColor = red
+  h.textColor = magenta
+  glow(h, magenta, 6)
   row.addSpacer()
-  line(row, phase + " · " + doneCount + "/" + tasks.length, 11, soft, false)
+  line(row, phase + " · " + doneCount + "/" + tasks.length, 11, cyan, true)
 }
 
 if (family === "accessoryCircular") {
@@ -97,7 +117,7 @@ if (family === "accessoryCircular") {
   const t = w.addText(firstOpen ? "Next: " + firstOpen.t : "Goal " + days + "d · tasks done")
   t.font = Font.boldSystemFont(15)
 } else {
-  w.backgroundColor = bg
+  w.backgroundGradient = bgGradient
   w.setPadding(14, 14, 14, 14)
 
   if (family === "medium") {
@@ -110,11 +130,12 @@ if (family === "accessoryCircular") {
     left.layoutVertically()
     const n = left.addText(String(days))
     n.font = Font.heavyRoundedSystemFont(42)
-    n.textColor = ink
+    n.textColor = cyan
+    glow(n, cyan, 10)
     n.minimumScaleFactor = 0.5
-    line(left, "days left", 13, ink, true)
+    line(left, "days left", 13, white, true)
     left.addSpacer(4)
-    line(left, P.money(earned) + " of £100k", 11, behind ? red : soft, false)
+    line(left, P.money(earned) + " of £100k", 11, behind ? hot : lime, true, behind ? hot : lime)
 
     row.addSpacer(12)
 
@@ -133,38 +154,41 @@ if (family === "accessoryCircular") {
     left.layoutVertically()
     const n = left.addText(String(days))
     n.font = Font.heavyRoundedSystemFont(54)
-    n.textColor = ink
+    n.textColor = cyan
+    glow(n, cyan, 12)
     n.minimumScaleFactor = 0.5
-    line(left, "days left", 14, ink, true)
+    line(left, "days left", 14, white, true)
 
     row.addSpacer()
 
     const right = row.addStack()
     right.layoutVertically()
-    line(right, "Banked  " + P.money(earned) + " (" + pct + "%)", 13, ink, true)
+    line(right, "Banked  " + P.money(earned) + " (" + pct + "%)", 13, lime, true, lime)
     right.addSpacer(4)
-    line(right, "This month  " + P.money(monthEarned) + " of " + P.money(monthTarget), 13, behind ? red : ink, true)
+    line(right, "This month  " + P.money(monthEarned) + " of " + P.money(monthTarget), 13, behind ? hot : white, true, behind ? hot : null)
     right.addSpacer(4)
-    line(right, "Messages  " + msgs + " of " + P.WEEK_MSG_GOAL, 13, msgs >= P.WEEK_MSG_GOAL ? ink : soft, true)
+    line(right, "Messages  " + msgs + " of " + P.WEEK_MSG_GOAL, 13, msgs >= P.WEEK_MSG_GOAL ? lime : cyan, true)
 
     w.addSpacer(14)
-    line(w, "TODAY", 11, red, true)
+    line(w, "TODAY", 11, magenta, true, magenta)
     w.addSpacer(4)
     taskLines(w, 7, 14)
     w.addSpacer()
-    line(w, "Visa ends 20 Nov 2027 (" + visaDays + " days)", 11, soft, false)
+    line(w, "Visa ends 20 Nov 2027 (" + visaDays + " days)", 11, dim, false)
   } else {
     const head = w.addText("£100K GOAL")
     head.font = Font.boldSystemFont(12)
-    head.textColor = red
+    head.textColor = magenta
+    glow(head, magenta, 6)
     w.addSpacer()
     const n = w.addText(String(days))
     n.font = Font.heavyRoundedSystemFont(44)
-    n.textColor = ink
+    n.textColor = cyan
+    glow(n, cyan, 10)
     n.minimumScaleFactor = 0.5
-    line(w, "days left", 14, ink, true)
+    line(w, "days left", 14, white, true)
     w.addSpacer(6)
-    line(w, doneCount + " of " + tasks.length + " tasks · " + P.money(earned), 11, behind ? red : soft, false)
+    line(w, doneCount + " of " + tasks.length + " tasks · " + P.money(earned), 11, behind ? hot : lime, true)
   }
 }
 
