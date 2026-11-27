@@ -69,16 +69,23 @@ background:rgba(20,5,40,.55);color:var(--cream);font-family:inherit}
 @keyframes slide{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:none}}
 @keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-</style></head><body><div id="app"></div>
+</style></head><body><div id="app"><p style="padding:30px 0;font-size:18px;font-weight:700">Loading your goal...</p></div>
 <script>
+window.onerror = function(m, src, line){ var a = document.getElementById("app"); if (a) a.innerHTML = '<p style="padding:20px 0;font-size:16px;line-height:1.5">Page error: ' + m + ' (line ' + line + ')</p>' };
 var NL = String.fromCharCode(10);
 var S = null, first = true, openIdx = -1, showPay = false, showWeek = false, askUndo = false, q = [], wake = null;
-function send(a){ if (wake){ var w = wake; wake = null; w(a) } else q.push(a) }
+var pending = null;
+function send(a){
+  clearTimeout(pending);
+  pending = setTimeout(function(){ setToast("No reply from Scriptable. Close this page and use Log Progress.") }, 4000);
+  if (wake){ var w = wake; wake = null; w(a) } else q.push(a);
+}
 function waitAction(cb){ if (q.length) cb(q.shift()); else wake = cb }
 function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c] }) }
 function el(id){ return document.getElementById(id) }
 function setToast(m){ if (el("toast")) el("toast").textContent = m }
 function setState(s){
+  clearTimeout(pending);
   if (first) { openIdx = -1; for (var i = 0; i < s.tasks.length; i++) { if (!s.tasks[i].done) { openIdx = i; break } } }
   S = s; render(); first = false;
 }
@@ -162,6 +169,7 @@ function render(){
     requestAnimationFrame(tick);
   }
 }
+setState(__INIT__);
 </script></body></html>`
 
 function build(toast) {
@@ -248,10 +256,9 @@ function J(x) {
 }
 
 const wv = new WebView()
-await wv.loadHTML(HOME)
+await wv.loadHTML(HOME.replace("__INIT__", () => J(build(""))))
 let closed = false
 const presented = wv.present(true).then(() => { closed = true })
-await wv.evaluateJavaScript("setState(" + J(build("")) + ")", false)
 while (!closed) {
   const act = await Promise.race([
     wv.evaluateJavaScript("waitAction(completion)", true),
