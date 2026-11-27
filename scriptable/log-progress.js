@@ -23,13 +23,20 @@ async function tasksScreen() {
     const has = i => done.indexOf(i) >= 0
     const a = new Alert()
     a.title = P.phaseLabel(today) + ": " + done.filter(i => i < tasks.length).length + " of " + tasks.length + " done"
-    a.message = tasks.map((t, i) => (has(i) ? "✓ " : "○ ") + t.t + "\n" + t.d).join("\n\n")
-    tasks.forEach((t, i) => a.addAction((has(i) ? "Undo: " : "Done: ") + t.t))
+    a.message = "Tap a task to read the steps."
+    tasks.forEach((t, i) => a.addAction((has(i) ? "✓ " : "○ ") + t.t))
     a.addCancelAction("Close")
     const i = await a.presentSheet()
     if (i < 0) break
-    data.done[key] = has(i) ? done.filter(x => x !== i) : done.concat([i])
-    P.save(data)
+    const d = new Alert()
+    d.title = tasks[i].t
+    d.message = tasks[i].d
+    d.addAction(has(i) ? "Mark not done" : "Mark done")
+    d.addCancelAction("Back")
+    if ((await d.present()) === 0) {
+      data.done[key] = has(i) ? done.filter(x => x !== i) : done.concat([i])
+      P.save(data)
+    }
   }
 }
 
@@ -132,7 +139,7 @@ async function dashboard() {
     msgs: Number(wk.messages) || 0,
     msgGoal: P.WEEK_MSG_GOAL,
     doneCount: tasks.filter((t, i) => doneList.indexOf(i) >= 0).length,
-    tasks: tasks.map((t, i) => ({ t: t.t, d: t.d, done: doneList.indexOf(i) >= 0 }))
+    tasks: tasks.map((t, i) => ({ t: t.t, d: t.d.split("\n")[0], done: doneList.indexOf(i) >= 0 }))
   }
   const html = DASH.replace("__DATA__", JSON.stringify(info).replace(/</g, "\\u003c"))
   const wv = new WebView()
