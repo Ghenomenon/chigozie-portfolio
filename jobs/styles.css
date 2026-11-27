@@ -446,6 +446,11 @@ textarea { min-height: 0; padding: 14px 16px; border-radius: 20px; font: 14px/1.
 .doc-tabs button.on { background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
 #doc { min-height: 320px; font: 400 15px/1.5 var(--text); }
 .stepper button { white-space: nowrap; }
+.kw-box { margin: 0 0 12px; padding: 12px 14px; border-radius: 20px; background: var(--tint); }
+.kw-head { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.kw-box .chips { margin: 0; }
+.kw-box .small { margin: 8px 0 0; }
+.chip.off { background: transparent; color: var(--muted); border-style: dashed; }
 .check-box summary { font-weight: 650; }
 .check-box ul { margin: 8px 0 0; padding-left: 20px; }
 .small { font-size: 13px; }

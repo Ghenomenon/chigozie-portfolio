@@ -564,7 +564,7 @@ export function parseReedDate(s) {
 
 // ---------- tailored CV and cover letter ----------
 
-export const DOC_MARKERS = { cv: '===CV===', letter: '===COVER LETTER===', check: '===CHECK===' };
+export const DOC_MARKERS = { keywords: '===KEYWORDS===', cv: '===CV===', letter: '===COVER LETTER===', check: '===CHECK===' };
 
 // The instruction both apps send to Claude, by API or by copy and paste. The reply comes back in three marked parts.
 export function docsPrompt({ job, advert = '', screenshots = 0, cv = '' }) {
@@ -578,7 +578,8 @@ export function docsPrompt({ job, advert = '', screenshots = 0, cv = '' }) {
     'Tailor my CV and write a cover letter for this job.',
     '',
     'RULES',
-    '- Use only facts that appear in MY CV. Never invent employers, dates, tools, qualifications or numbers.',
+    '- Keywords come first. Find the 10 to 15 most important keywords and phrases in the advert: skills, tools, qualifications, duties and the words in the job title. Use the advert\'s exact wording in my CV and letter wherever my CV supports it, in the profile, the skills section and the first bullet points of the most relevant roles. Recruiters and screening software look for these exact words.',
+    '- Use only facts that appear in MY CV. Never invent employers, dates, tools, qualifications or numbers. Never add a keyword my CV does not support.',
     '- Reword and reorder to match the advert. Keep my skill levels as written.',
     '- If the advert asks for something my CV does not support, do not cover the gap. List it under CHECK.',
     '- Do not mention my right to work, visa status or sponsorship.',
@@ -597,7 +598,9 @@ export function docsPrompt({ job, advert = '', screenshots = 0, cv = '' }) {
     'MY CV',
     cv.trim(),
     '',
-    'REPLY IN EXACTLY THIS FORMAT, WITH THESE THREE MARKER LINES AND NOTHING BEFORE THE FIRST ONE',
+    'REPLY IN EXACTLY THIS FORMAT, WITH THESE FOUR MARKER LINES AND NOTHING BEFORE THE FIRST ONE',
+    DOC_MARKERS.keywords,
+    '(the advert\'s keywords, most important first, one per line as "- keyword: used" or "- keyword: not in my CV", using the advert\'s exact wording)',
     DOC_MARKERS.cv,
     '(my tailored CV in markdown, at most two pages, the most relevant results first)',
     DOC_MARKERS.letter,
@@ -617,15 +620,38 @@ export function splitDocs(reply) {
     return null;
   };
   const cv = find(['cv', 'tailored cv', 'curriculum vitae', 'resume']);
+  const keywords = find(['keywords', 'key words', 'advert keywords']);
   const letter = find(['cover letter', 'covering letter']);
   const check = find(['check', 'things to check', 'gaps and checks']);
   if (!cv) return null;
-  const parts = [{ key: 'cv', ...cv }, letter && { key: 'letter', ...letter }, check && { key: 'check', ...check }].filter(Boolean).sort((a, b) => a.start - b.start);
-  const out = { cv: '', letter: '', check: '' };
+  const parts = [keywords && { key: 'keywords', ...keywords }, { key: 'cv', ...cv }, letter && { key: 'letter', ...letter }, check && { key: 'check', ...check }].filter(Boolean).sort((a, b) => a.start - b.start);
+  const out = { cv: '', letter: '', check: '', keywords: [] };
   parts.forEach((p, i) => { out[p.key] = text.slice(p.end, i + 1 < parts.length ? parts[i + 1].start : text.length).trim(); });
   // a closing code fence left over from a copied reply
-  for (const k of Object.keys(out)) out[k] = out[k].replace(/^```\w*\n?|\n?```$/g, '').trim();
+  for (const k of ['cv', 'letter', 'check']) out[k] = out[k].replace(/^```\w*\n?|\n?```$/g, '').trim();
+  out.keywords = parseKeywords(typeof out.keywords === 'string' ? out.keywords : '');
   return out.cv ? out : null;
+}
+
+// "- SQL: used", "- Power BI (not in my CV)", "1. Stakeholder management - used" become { word, supported }.
+export function parseKeywords(text) {
+  const out = [];
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/[*_`]/g, '').trim();
+    if (!line) continue;
+    const m = /^(.*?)(?:\s*[:\u2013\u2014]\s*|\s+-\s+|\s*\()\s*(used|in (?:my |your )?cv|supported|yes|not in (?:my |your )?cv|not supported|missing|no)\b.*$/i.exec(line);
+    const word = (m ? m[1] : line).replace(/[\s:(\u2013\u2014-]+$/, '').trim();
+    if (!word || word.length > 60) continue;
+    const supported = m ? !/^(not|missing|no)\b/i.test(m[2]) : true;
+    if (!out.some((k) => k.word.toLowerCase() === word.toLowerCase())) out.push({ word, supported });
+  }
+  return out.slice(0, 20);
+}
+
+// Which keywords appear in a text, ignoring case and spacing ("Power BI" matches "power  bi").
+export function keywordsIn(text, keywords) {
+  const t = String(text || '').toLowerCase().replace(/\s+/g, ' ');
+  return keywords.map((k) => ({ ...k, found: t.includes(k.word.toLowerCase().replace(/\s+/g, ' ')) }));
 }
 
 const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

@@ -5,7 +5,7 @@
 // The app passes in what differs: where things are stored, how a job is described, and (Job Radar) a writer that
 // calls Claude directly. Without a writer, the sheet uses copy and paste with claude.ai.
 
-import { docsPrompt, splitDocs, mdToHtml } from './lib.mjs';
+import { docsPrompt, splitDocs, mdToHtml, keywordsIn } from './lib.mjs';
 
 const READ_REASONS = {
   'bad-url': 'That link is not valid. Add a screenshot instead.',
@@ -39,7 +39,7 @@ export function initApplySheet(hooks) {
   let advertText = '';
   let shots = [];
   let shotUrls = [];
-  let docs = { cv: '', letter: '', check: '' };
+  let docs = { cv: '', letter: '', check: '', keywords: [] };
   let docTab = 'cv';
   let saveTimer = null;
 
@@ -109,6 +109,25 @@ export function initApplySheet(hooks) {
     }, 300);
   }
 
+  // The advert's keywords, checked live against the tailored CV. Missing ones the CV supports are flagged.
+  function showKeywords() {
+    const list = keywordsIn(docs.cv, docs.keywords || []);
+    $('kw-box').hidden = !list.length;
+    if (!list.length) return;
+    const usable = list.filter((k) => k.supported);
+    const inCv = usable.filter((k) => k.found).length;
+    $('kw-count').textContent = `${inCv} of ${usable.length} in your CV`;
+    $('kw-list').replaceChildren(...list.map((k) => {
+      const chip = document.createElement('span');
+      chip.className = `chip ${k.found ? 'good' : k.supported ? 'warn' : 'off'}`;
+      chip.textContent = `${k.found ? '✓' : k.supported ? '!' : '–'} ${k.word}`;
+      chip.title = k.found ? 'In your tailored CV' : k.supported ? 'Your CV supports this, but the tailored CV does not use the word yet' : 'Not in your CV. Do not add it unless it is true';
+      return chip;
+    }));
+    const gaps = usable.filter((k) => !k.found).map((k) => k.word);
+    $('kw-note').textContent = gaps.length ? `Add where true: ${gaps.join(', ')}.` : 'Every keyword your CV supports is in it.';
+  }
+
   function showDoc() {
     for (const b of document.querySelectorAll('.doc-tabs [data-doc]')) {
       const on = b.dataset.doc === docTab;
@@ -117,6 +136,7 @@ export function initApplySheet(hooks) {
     }
     $('doc').value = docs[docTab] || '';
     $('doc').placeholder = docTab === 'cv' ? 'Your tailored CV appears here. You can edit it.' : 'Your cover letter appears here. You can edit it.';
+    showKeywords();
     const has = Boolean(docs.cv || docs.letter);
     $('doc-area').hidden = !has;
     $('rewrite-head').hidden = !has;
@@ -236,7 +256,7 @@ export function initApplySheet(hooks) {
   });
   if (onNeedKey) $('key-hint').addEventListener('click', (e) => { e.preventDefault(); $('apply').close(); onNeedKey(); });
   for (const b of document.querySelectorAll('.doc-tabs [data-doc]')) b.addEventListener('click', () => { docTab = b.dataset.doc; showDoc(); });
-  $('doc').addEventListener('input', () => { docs[docTab] = $('doc').value; persist(); });
+  $('doc').addEventListener('input', () => { docs[docTab] = $('doc').value; persist(); if (docTab === 'cv') showKeywords(); });
   $('doc-copy').addEventListener('click', copyDoc);
   $('doc-pdf').addEventListener('click', printDoc);
   $('mark-applied').addEventListener('click', () => { if (job) { markApplied(job); refreshSend(); $('applied-note').textContent = 'Marked as Applied. It is in your Tracker.'; } });
@@ -251,7 +271,7 @@ export function initApplySheet(hooks) {
     job = j;
     shots = [];
     advertText = j.summary || '';
-    docs = { cv: '', letter: '', check: '', ...(load()[j.id] || {}) };
+    docs = { cv: '', letter: '', check: '', keywords: [], ...(load()[j.id] || {}) };
     docTab = 'cv';
     const d = describe(j);
     $('apply-title').textContent = d.title;

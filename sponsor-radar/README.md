@@ -31,6 +31,8 @@ Each role has an Apply button. It opens a sheet with three steps. Tap a step to 
 1. **Advert.** The advert text, read from its link when you open the sheet. Edit it, read it again, or add up to four screenshots.
 2. **Documents.** Your tailored CV and cover letter. Copy the prompt, open Claude, then paste Claude's whole reply back. The app splits it into the CV and the letter.
    - Edit either one in the app. Copy it, or save it as a PDF through the phone's print menu.
+   - **Keywords come first.** Claude lists the advert's 10 to 15 most important keywords, then uses the advert's exact wording in your CV and letter wherever your CV supports it, in the profile, the skills and the first bullet points. It never adds a keyword your CV does not support.
+   - The Advert keywords panel shows each one: ✓ in your tailored CV, ! your CV supports it but the tailored CV does not use the word yet, – not in your CV. It counts how many supported keywords are in, names the missing ones, and updates as you edit.
    - "Check before you send" lists what your CV does not cover and anything Claude was unsure about.
    - The documents are saved on the phone with the role. Opening Apply again goes straight to them.
 3. **Apply.** Open the advert and send the application on the employer's site. The app never sends anything. Then tap I have applied. The date goes into the tracker.
