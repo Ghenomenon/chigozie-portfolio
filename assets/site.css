@@ -70,3 +70,5 @@ main.case-body .track{background:var(--soft)}
 .wm-band p:not(.eyebrow){font-size:14px}
 @media(max-width:1000px){.wm-grid,.wm-steps{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.wm-grid,.wm-steps,.wm-terms,.wm-band{grid-template-columns:1fr}.wm-band{padding:24px}.wm-hero{padding-block:40px 20px}}
+.nav nav a{white-space:nowrap}
+@media(min-width:701px) and (max-width:860px){.nav{padding-inline:24px;gap:12px}.nav nav{gap:10px;font-size:12px}.nav .brand{white-space:nowrap}}
