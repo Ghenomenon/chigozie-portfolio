@@ -45,3 +45,10 @@ Add a £100,000 revenue countdown to the Scriptable setup that already holds the
 
 ## Open risk (not a build item)
 The visa expires 20 Nov 2027, 41 days before the goal date. Confirm that your visa allows self-employment before the first message. This is Part 13 of the plan.
+
+## Update: daily tasks
+- The widget shows today's tasks from the plan. Days 1 to 14 follow Part 4, with the Part 13 admin spread across them. From Day 15 the Part 9 weekly rhythm repeats.
+- Before Day 1 (Mon 30 Nov 2026) it shows three preparation tasks, starting with the visa check.
+- Tasks are ticked off in Log Progress. Ticks are stored per day in the data file.
+- Shared settings, the schedule and file helpers moved into a third script, "Goal Plan", which the other two import.
+- Medium widget: days left, banked revenue and four tasks. Large widget: adds this month, messages and the visa line.

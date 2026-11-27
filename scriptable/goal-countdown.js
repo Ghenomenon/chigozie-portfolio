@@ -1,70 +1,36 @@
 // Goal Countdown widget for Scriptable (iPhone and iPad)
-// Counts down to £100,000 of revenue by 31 Dec 2027.
-// Name this script "Goal Countdown". Tap the widget to open "Log Progress".
+// Counts down to £100,000 of revenue by 31 Dec 2027 and shows today's tasks.
+// Name this script "Goal Countdown". Needs the "Goal Plan" script.
+// Tap the widget to open "Log Progress".
 
-const GOAL_DATE = new Date(2027, 11, 31)
-const VISA_DATE = new Date(2027, 10, 20)
-const TARGET = 100000
-const WEEK_MSG_GOAL = 30
-const FILE = "goal-data.json"
+const P = importModule("Goal Plan")
 const LOG_URL = "scriptable:///run?scriptName=Log%20Progress"
 
-// Monthly revenue targets (Part 2 of the plan). Total £108.5k.
-const MONTHS = {
-  "2026-12": 0, "2027-01": 1500, "2027-02": 3000, "2027-03": 5000,
-  "2027-04": 7000, "2027-05": 8000, "2027-06": 9000, "2027-07": 10000,
-  "2027-08": 11000, "2027-09": 12000, "2027-10": 13000, "2027-11": 14000,
-  "2027-12": 15000
-}
+const today = P.midnight(new Date())
+const data = P.load()
 
-function pad(n) { return n < 10 ? "0" + n : String(n) }
-function dayKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) }
-function monthKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) }
-function mondayKey(d) {
-  const m = new Date(d)
-  m.setDate(m.getDate() - ((m.getDay() + 6) % 7))
-  return dayKey(m)
-}
-function money(n) {
-  if (n >= 1000) return "£" + (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + "k"
-  return "£" + Math.round(n)
-}
-
-function load() {
-  try {
-    const fm = FileManager.local()
-    const path = fm.joinPath(fm.documentsDirectory(), FILE)
-    if (fm.fileExists(path)) {
-      const d = JSON.parse(fm.readString(path))
-      return {
-        payments: Array.isArray(d.payments) ? d.payments : [],
-        weeks: d.weeks && typeof d.weeks === "object" ? d.weeks : {}
-      }
-    }
-  } catch (e) {}
-  return { payments: [], weeks: {} }
-}
-
-const today = new Date()
-today.setHours(0, 0, 0, 0)
-const data = load()
-
-const days = Math.max(0, Math.round((GOAL_DATE - today) / 86400000))
-const visaDays = Math.max(0, Math.round((VISA_DATE - today) / 86400000))
+const days = Math.max(0, P.daysBetween(today, P.GOAL_DATE))
+const visaDays = Math.max(0, P.daysBetween(today, P.VISA_DATE))
 const earned = data.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0)
-const pct = Math.min(100, Math.round((earned / TARGET) * 100))
+const pct = Math.min(100, Math.round((earned / P.TARGET) * 100))
 
-const mk = monthKey(today)
-const monthTarget = MONTHS[mk] || 0
+const mk = P.monthKey(today)
+const monthTarget = P.MONTHS[mk] || 0
 const monthEarned = data.payments
   .filter(p => String(p.date).slice(0, 7) === mk)
   .reduce((s, p) => s + (Number(p.amount) || 0), 0)
 const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
-const expectedByNow = monthTarget * (today.getDate() / daysInMonth)
-const behind = monthTarget > 0 && monthEarned < expectedByNow
+const behind = monthTarget > 0 && monthEarned < monthTarget * (today.getDate() / daysInMonth)
 
-const wk = data.weeks[mondayKey(today)] || {}
+const wk = data.weeks[P.mondayKey(today)] || {}
 const msgs = Number(wk.messages) || 0
+
+const tasks = P.tasksFor(today)
+const doneList = data.done[P.dayKey(today)] || []
+const isDone = i => doneList.indexOf(i) >= 0
+const doneCount = tasks.filter((t, i) => isDone(i)).length
+const firstOpen = tasks.find((t, i) => !isDone(i))
+const phase = P.phaseLabel(today)
 
 const red = new Color("#c0262d")
 const ink = Color.dynamic(new Color("#10302b"), new Color("#dcefe8"))
@@ -74,7 +40,7 @@ const bg = Color.dynamic(new Color("#f3f9f5"), new Color("#162825"))
 const w = new ListWidget()
 w.url = LOG_URL
 
-// Refresh just after midnight so the number changes each day
+// Refresh just after midnight so the day and tasks change
 const next = new Date(today)
 next.setDate(next.getDate() + 1)
 next.setMinutes(1)
@@ -91,6 +57,28 @@ function line(stack, text, size, color, bold) {
   return t
 }
 
+// Open tasks first, then done ones
+function taskLines(stack, max, size) {
+  const items = tasks.map((t, i) => ({ t: t.t, done: isDone(i) }))
+  items.sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0))
+  if (doneCount === tasks.length) line(stack, "All done today. Log your numbers.", size, soft, false)
+  items.slice(0, max).forEach(it => {
+    line(stack, (it.done ? "✓ " : "○ ") + it.t, size, it.done ? soft : ink, !it.done)
+    stack.addSpacer(3)
+  })
+  if (items.length > max) line(stack, "+" + (items.length - max) + " more", size - 1, soft, false)
+}
+
+function header(stack) {
+  const row = stack.addStack()
+  row.layoutHorizontally()
+  const h = row.addText("£100K GOAL")
+  h.font = Font.boldSystemFont(12)
+  h.textColor = red
+  row.addSpacer()
+  line(row, phase + " · " + doneCount + "/" + tasks.length, 11, soft, false)
+}
+
 if (family === "accessoryCircular") {
   w.addAccessoryWidgetBackground = true
   const n = w.addText(String(days))
@@ -101,22 +89,43 @@ if (family === "accessoryCircular") {
   t.centerAlignText()
 } else if (family === "accessoryRectangular") {
   const t = w.addText("Goal: " + days + " days left")
-  t.font = Font.boldSystemFont(15)
-  const s = w.addText(money(earned) + " of £100k · " + pct + "%")
+  t.font = Font.boldSystemFont(14)
+  const s = w.addText(firstOpen ? "Next: " + firstOpen.t : "Tasks done today")
   s.font = Font.systemFont(12)
+  s.lineLimit = 2
 } else if (family === "accessoryInline") {
-  const t = w.addText("Goal " + days + "d · " + money(earned) + " of £100k")
+  const t = w.addText(firstOpen ? "Next: " + firstOpen.t : "Goal " + days + "d · tasks done")
   t.font = Font.boldSystemFont(15)
 } else {
   w.backgroundColor = bg
   w.setPadding(14, 14, 14, 14)
 
-  const head = w.addText("£100K GOAL")
-  head.font = Font.boldSystemFont(12)
-  head.textColor = red
-
   if (family === "medium") {
-    w.addSpacer(4)
+    header(w)
+    w.addSpacer(6)
+    const row = w.addStack()
+    row.layoutHorizontally()
+
+    const left = row.addStack()
+    left.layoutVertically()
+    const n = left.addText(String(days))
+    n.font = Font.heavyRoundedSystemFont(42)
+    n.textColor = ink
+    n.minimumScaleFactor = 0.5
+    line(left, "days left", 13, ink, true)
+    left.addSpacer(4)
+    line(left, P.money(earned) + " of £100k", 11, behind ? red : soft, false)
+
+    row.addSpacer(12)
+
+    const right = row.addStack()
+    right.layoutVertically()
+    taskLines(right, 4, 12)
+    row.addSpacer()
+    w.addSpacer()
+  } else if (family === "large") {
+    header(w)
+    w.addSpacer(8)
     const row = w.addStack()
     row.layoutHorizontally()
 
@@ -132,15 +141,22 @@ if (family === "accessoryCircular") {
 
     const right = row.addStack()
     right.layoutVertically()
-    line(right, "Banked  " + money(earned) + " (" + pct + "%)", 13, ink, true)
+    line(right, "Banked  " + P.money(earned) + " (" + pct + "%)", 13, ink, true)
     right.addSpacer(4)
-    line(right, "This month  " + money(monthEarned) + " of " + money(monthTarget), 13, behind ? red : ink, true)
+    line(right, "This month  " + P.money(monthEarned) + " of " + P.money(monthTarget), 13, behind ? red : ink, true)
     right.addSpacer(4)
-    line(right, "Messages  " + msgs + " of " + WEEK_MSG_GOAL, 13, msgs >= WEEK_MSG_GOAL ? ink : soft, true)
+    line(right, "Messages  " + msgs + " of " + P.WEEK_MSG_GOAL, 13, msgs >= P.WEEK_MSG_GOAL ? ink : soft, true)
 
+    w.addSpacer(14)
+    line(w, "TODAY", 11, red, true)
+    w.addSpacer(4)
+    taskLines(w, 7, 14)
     w.addSpacer()
     line(w, "Visa ends 20 Nov 2027 (" + visaDays + " days)", 11, soft, false)
   } else {
+    const head = w.addText("£100K GOAL")
+    head.font = Font.boldSystemFont(12)
+    head.textColor = red
     w.addSpacer()
     const n = w.addText(String(days))
     n.font = Font.heavyRoundedSystemFont(44)
@@ -148,7 +164,7 @@ if (family === "accessoryCircular") {
     n.minimumScaleFactor = 0.5
     line(w, "days left", 14, ink, true)
     w.addSpacer(6)
-    line(w, money(earned) + " of £100k", 11, behind ? red : soft, false)
+    line(w, doneCount + " of " + tasks.length + " tasks · " + P.money(earned), 11, behind ? red : soft, false)
   }
 }
 
@@ -156,6 +172,7 @@ if (config.runsInWidget) {
   Script.setWidget(w)
 } else {
   if (family === "medium") await w.presentMedium()
+  else if (family === "large") await w.presentLarge()
   else await w.presentSmall()
 }
 Script.complete()
