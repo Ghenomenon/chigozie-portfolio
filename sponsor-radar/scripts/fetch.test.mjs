@@ -250,3 +250,15 @@ test('with no boards behind the guesses, nothing is added and the run does not f
   assert.ok(Object.keys(boards.missed).length >= 1, 'misses are remembered so they are not tried every day');
   assert.equal(data.jobs.filter((j) => j.source === 'Employer site').length, 0);
 });
+
+test('a board that belongs to a recruiter is dropped from the saved boards', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sr-agency-'));
+  writeFileSync(join(dir, 'boards.json'), JSON.stringify({ services: 'greenhouse,lever,ashby,smartrecruiters,workable', found: {
+    hackajob: { name: 'Hackajob Ltd', ats: 'smartrecruiters', slug: 'hackajob', found: '2026-11-26', rules: 2 },
+  }, missed: {} }));
+  const { r, boards } = run({}, dir);
+  assert.equal(r.status, 0, r.stderr + r.stdout);
+  assert.equal(boards.found.hackajob, undefined);
+  assert.ok(boards.missed.hackajob, 'remembered, so it is not searched for again soon');
+  assert.match(r.stdout, /dropped 1 that belong to recruiters/);
+});

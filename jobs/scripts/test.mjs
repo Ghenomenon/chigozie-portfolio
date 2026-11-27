@@ -177,3 +177,8 @@ test('inbox adverts go through the same filters and sponsor check as any other',
   assert.equal(job.sponsorship, 'refused');
   assert.equal(dropReason(job, cfg, today), 'no-sponsorship');
 });
+
+test('well-known UK recruiters and hiring platforms are tagged as agencies', () => {
+  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Hackajob Ltd']) assert.ok(isAgency({ company: c, title: '' }), c);
+  assert.ok(!isAgency({ company: 'Monzo Bank', title: '' }));
+});

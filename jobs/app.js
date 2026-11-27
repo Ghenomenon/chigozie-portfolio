@@ -424,177 +424,48 @@
   // ---------- Apply flow ----------
   let defaultCv = '';
   const getCv = () => store.get('jr.cv', '') || defaultCv;
-  let applyJob = null;
 
-  let advertText = '';       // from the saved summary, the link, or the person's edits
-  let shots = [];            // screenshot files, kept in memory only
-  let shotUrls = [];
-
-  const READ_REASONS = {
-    'bad-url': 'That link is not valid.',
-    'not-allowed': 'This site is not on the list the reader can open. Add a screenshot instead.',
-    blocked: 'The site blocked the reader, which is common for Indeed and LinkedIn. Add a screenshot instead.',
-    empty: 'The page had no advert text I could read. Add a screenshot instead.',
-    'not-html': 'The link did not open a web page. Add a screenshot instead.',
-    'too-large': 'The page was too large to read. Add a screenshot instead.',
-    'fetch-failed': 'The reader could not open that page. Try again, or add a screenshot.',
-  };
-
-  function buildPrompt(j) {
-    const pay = salaryText(j);
-    const hasText = advertText.trim().length > 0;
-    let advert;
-    if (hasText && shots.length) advert = `${advertText.trim()}\n\n(A screenshot of the advert is also attached. Use it where the text above is missing or unclear.)`;
-    else if (hasText) advert = advertText.trim();
-    else if (shots.length) advert = `(The advert is in the attached screenshot${shots.length > 1 ? 's' : ''}. Read it from there.)`;
-    else advert = '(Not available. Open the advert link. If you cannot read it, tell me and I will add a screenshot.)';
-    return [
-      'Help me apply for this job. Follow these rules.',
-      '- Use only facts that appear in MY CV below. Do not invent employers, dates, tools, qualifications or numbers.',
-      '- Reword and reorder to match the advert. Keep my skill levels as written, for example Power BI is working knowledge and Python is foundational.',
-      '- If the advert asks for something my CV does not support, say so. Do not cover the gap.',
-      '- Do not answer questions about my right to work, visa status or sponsorship. Leave those for me.',
-      '- Write in plain, direct British English. No filler phrases.',
-      '',
-      'JOB',
-      `Title: ${j.title}`,
-      `Company: ${j.company}${isRecruiter(j) ? ' (a recruiter, so the real employer may differ)' : ''}`,
-      `Location: ${j.location || 'UK'}${j.workMode !== 'onsite' ? ` (${j.workMode})` : ''}`,
-      `Pay: ${pay}`,
-      `Advert link: ${j.url}`,
-      '',
-      'ADVERT TEXT',
-      advert,
-      '',
-      'MY CV',
-      getCv().trim(),
-      '',
-      'DO THIS, IN ORDER',
-      '1. List the 5 to 8 keywords from the advert that my CV should reflect. Then list any requirement my CV cannot support.',
-      '2. Write my tailored CV in markdown. Keep it to two pages. Put the most relevant results first.',
-      '3. Write a cover letter under 250 words. Name the company and role.',
-      '4. Draft answers under 100 words each for: Why this role? Why this company? Describe a time you improved a process with data. What is your experience with Excel and SQL?',
-      '5. List anything you were unsure about so I can check it. Leave salary expectations, notice period and start date blank for me.',
-    ].join('\n');
-  }
-
-  function refreshPrompt() {
-    if (applyJob) $('prompt-preview').value = buildPrompt(applyJob);
-    const canShare = shots.length && typeof navigator.canShare === 'function' && navigator.canShare({ files: shots });
-    $('share').hidden = !canShare;
-    $('claude-note').textContent = shots.length
-      ? (canShare
-        ? 'Tap Share, then choose Claude. If the screenshot does not arrive, open Claude, paste the prompt and attach it yourself.'
-        : 'Open Claude, paste the prompt, then attach your screenshot. Check every line of the result.')
-      : 'You get a tailored CV, a cover letter and draft answers. Check every line before you use it.';
-  }
-
-  function showAdvertText() {
-    $('advert').value = advertText;
-    $('advert-details').hidden = !advertText;
-  }
-
-  function renderShots() {
-    shotUrls.forEach((u) => URL.revokeObjectURL(u));
-    shotUrls = shots.map((f) => URL.createObjectURL(f));
-    const box = $('shot-list');
-    box.replaceChildren();
-    shots.forEach((f, i) => {
-      box.append(el('div', { class: 'thumb' },
-        el('img', { src: shotUrls[i], alt: `Screenshot ${i + 1}` }),
-        el('button', { type: 'button', 'aria-label': `Remove screenshot ${i + 1}`, onclick: () => { shots.splice(i, 1); renderShots(); }, text: '×' })));
-    });
-    refreshPrompt();
-  }
-
-  async function readFromLink() {
-    if (!applyJob) return;
-    const note = $('read-note');
-    const btn = $('read-link');
-    btn.disabled = true;
-    note.textContent = 'Reading the advert';
-    try {
-      const res = await fetch(`/.netlify/functions/advert?url=${encodeURIComponent(applyJob.url)}`, { cache: 'no-store' });
-      const data = await res.json();
-      if (data.ok && data.text) {
-        advertText = data.text;
-        showAdvertText();
-        note.textContent = `Read ${data.text.length.toLocaleString('en-GB')} characters from the advert. Check them below.`;
-      } else {
-        note.textContent = READ_REASONS[data.reason] || READ_REASONS['fetch-failed'];
-      }
-    } catch {
-      note.textContent = READ_REASONS['fetch-failed'];
+  // The sheet lives in sponsor-radar/scripts/apply-sheet.mjs, shared with Sponsor Radar. With an API key saved in
+  // Settings, Claude writes the CV and letter in the app. Without one, the sheet uses copy and paste.
+  const getKey = () => { try { return localStorage.getItem('jr.apikey') || ''; } catch { return ''; } };
+  let openSheet = null;
+  async function openApply(j) {
+    if (!openSheet) {
+      const { initApplySheet } = await import('../sponsor-radar/scripts/apply-sheet.mjs');
+      openSheet = initApplySheet({
+        prefix: 'jr',
+        getCv,
+        describe: (x) => ({ title: x.title, company: x.company, location: `${x.location || 'UK'}${x.workMode && x.workMode !== 'onsite' ? ` (${x.workMode})` : ''}`, pay: salaryText(x), url: x.url, recruiter: isRecruiter(x) }),
+        markApplied: (x) => setStatus(x, 'Applied'),
+        appliedOn: (x) => tracker[x.id]?.applied || null,
+        writer: async ({ prompt, images }) => (await import('./scripts/write.mjs')).writeDocs({ key: getKey(), prompt, images }),
+        writerReady: () => Boolean(getKey()),
+        onNeedKey: () => { show('settings'); $('api-key').focus(); },
+      });
     }
-    btn.disabled = false;
-    refreshPrompt();
+    openSheet(j);
   }
 
-  function openApply(j) {
-    applyJob = j;
-    shots = [];
-    advertText = j.summary || '';
-    renderShots();
-    showAdvertText();
-    $('apply-title').textContent = j.title;
-    $('apply-sub').textContent = `${j.company} · ${j.location || 'UK'}`;
-    $('advert-note').textContent = j.summary
-      ? 'The advert text is already saved. Read it again from the link, or add a screenshot.'
-      : 'Read the advert from its link, or add a screenshot of it.';
-    $('read-note').textContent = '';
-    $('open-advert').href = safeUrl(j.url);
-    $('copy-note').textContent = '';
-    $('did-apply').checked = false;
-    $('mark-applied').disabled = true;
-    refreshPrompt();
-    const d = $('apply');
-    if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
-    if (!j.summary) readFromLink();
+  // Claude API key, for writing in the app. Kept on this phone and sent only to Anthropic.
+  function showKey() {
+    const k = getKey();
+    $('api-key').value = '';
+    $('api-key').placeholder = k ? `Saved, ending ${k.slice(-4)}` : 'sk-ant-...';
+    $('key-remove').hidden = !k;
   }
-
-  async function copyPrompt() {
-    refreshPrompt();
-    const text = $('prompt-preview').value;
-    try {
-      await navigator.clipboard.writeText(text);
-      $('copy-note').textContent = shots.length ? 'Copied. Open Claude, paste it and attach your screenshot.' : 'Copied. Now open Claude and paste it.';
-    } catch {
-      const area = $('prompt-preview');
-      area.closest('details').open = true;
-      area.focus(); area.select();
-      $('copy-note').textContent = 'Copy blocked. The text is selected below. Use Copy from the menu.';
-    }
-  }
-
-  async function sharePrompt() {
-    refreshPrompt();
-    try {
-      await navigator.share({ files: shots, text: $('prompt-preview').value, title: applyJob ? applyJob.title : 'Job advert' });
-    } catch (e) {
-      if (e && e.name === 'AbortError') return;
-      $('copy-note').textContent = 'Sharing did not work. Copy the prompt, open Claude and attach the screenshot.';
-    }
-  }
-
-  $('read-link').addEventListener('click', readFromLink);
-  $('shots').addEventListener('change', (e) => {
-    const picked = [...e.target.files].filter((f) => f.type.startsWith('image/')).slice(0, 4 - shots.length);
-    shots.push(...picked);
-    e.target.value = '';
-    renderShots();
+  $('key-save').addEventListener('click', () => {
+    const k = $('api-key').value.trim();
+    if (!/^sk-ant-[\w-]{20,}$/.test(k)) { $('key-note').textContent = 'That does not look like an Anthropic API key. It starts with sk-ant-.'; return; }
+    try { localStorage.setItem('jr.apikey', k); } catch { /* private mode */ }
+    $('key-note').textContent = 'Saved on this phone. Apply now writes your CV and letter in the app.';
+    showKey();
   });
-  $('advert').addEventListener('input', () => { advertText = $('advert').value; refreshPrompt(); });
-  $('copy').addEventListener('click', copyPrompt);
-  $('share').addEventListener('click', sharePrompt);
-  $('did-apply').addEventListener('change', (e) => { $('mark-applied').disabled = !e.target.checked; });
-  $('mark-applied').addEventListener('click', () => {
-    if (applyJob) setStatus(applyJob, 'Applied');
-    $('apply').close();
+  $('key-remove').addEventListener('click', () => {
+    try { localStorage.removeItem('jr.apikey'); } catch { /* ignore */ }
+    $('key-note').textContent = 'Removed. Apply goes back to copy and paste.';
+    showKey();
   });
-  $('apply').addEventListener('close', () => {
-    shotUrls.forEach((u) => URL.revokeObjectURL(u));
-    shotUrls = []; shots = [];
-  });
+  showKey();
 
   // CV editor in Settings
   async function loadDefaultCv() {

@@ -72,7 +72,7 @@ export const isHardToSponsor = (job) => familyOf(job) !== 'analyst';
 // so a licence or a missing licence says little about the real employer. This is a best guess from the
 // company name and the advert wording, and it can be wrong either way.
 const AGENCY_WORDS = /\b(recruit\w*|staffing|resourcing|headhunt\w*|personnel|appointments|executive search|search (and|&) selection|interim)\b/i;
-const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|search consultancy|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic|harvey nash|goodman masson|oliver james|robert walters|investigo|sthree|huxley|gattaca|matchtech|sanderson|pertemps|blue arrow|office angels)/i;
+const AGENCY_KNOWN = /^(hays|adecco|randstad|harnham|michael page|page personnel|robert half|manpower|manpowergroup|kelly services|hudson|morgan mckinley|spencer ogden|nigel frank|jefferson frank|la fosse|venn group|reed(\s+(specialist|recruitment|in partnership|talent|business|contracts?)|$)|totaljobs|cv-library|search consultancy|walters people|hunter bond|lorien|computer futures|experis|jobsgopublic|harvey nash|goodman masson|oliver james|robert walters|investigo|sthree|huxley|gattaca|matchtech|sanderson|pertemps|blue arrow|office angels|hackajob)/i;
 const AGENCY_TEXT = /\bon behalf of (our|a|one of our|the) client|\bour client\b|\b(acting as|is) an? employment (agency|business)|\brecruitment (agency|consultancy|business)\b/i;
 
 export function isAgency(job) {
@@ -560,4 +560,187 @@ export function manualJob({ url, title, company, location = '' }, today, registe
 export function parseReedDate(s) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || '');
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+// ---------- tailored CV and cover letter ----------
+
+export const DOC_MARKERS = { keywords: '===KEYWORDS===', cv: '===CV===', letter: '===COVER LETTER===', check: '===CHECK===' };
+
+// The instruction both apps send to Claude, by API or by copy and paste. The reply comes back in three marked parts.
+export function docsPrompt({ job, advert = '', screenshots = 0, cv = '' }) {
+  const text = advert.trim();
+  let advertPart;
+  if (text && screenshots) advertPart = `${text}\n\n(A screenshot of the advert is also attached. Use it where the text above is missing or unclear.)`;
+  else if (text) advertPart = text;
+  else if (screenshots) advertPart = `(The advert is in the attached screenshot${screenshots > 1 ? 's' : ''}. Read it from there.)`;
+  else advertPart = '(Not available. Work from the job title and say what you could not check.)';
+  return [
+    'Tailor my CV and write a cover letter for this job.',
+    '',
+    'RULES',
+    '- Keywords come first. Find the 10 to 15 most important keywords and phrases in the advert: skills, tools, qualifications, duties and the words in the job title. Use the advert\'s exact wording in my CV and letter wherever my CV supports it, in the profile, the skills section and the first bullet points of the most relevant roles. Recruiters and screening software look for these exact words.',
+    '- Use only facts that appear in MY CV. Never invent employers, dates, tools, qualifications or numbers. Never add a keyword my CV does not support.',
+    '- Reword and reorder to match the advert. Keep my skill levels as written.',
+    '- If the advert asks for something my CV does not support, do not cover the gap. List it under CHECK.',
+    '- Do not mention my right to work, visa status or sponsorship.',
+    '- Plain, direct British English. No filler phrases.',
+    '',
+    'JOB',
+    `Title: ${job.title}`,
+    `Company: ${job.company}${job.recruiter ? ' (a recruiter, so the real employer may differ)' : ''}`,
+    `Location: ${job.location || 'UK'}`,
+    job.pay ? `Pay: ${job.pay}` : null,
+    job.url ? `Advert link: ${job.url}` : null,
+    '',
+    'ADVERT',
+    advertPart,
+    '',
+    'MY CV',
+    cv.trim(),
+    '',
+    'REPLY IN EXACTLY THIS FORMAT, WITH THESE FOUR MARKER LINES AND NOTHING BEFORE THE FIRST ONE',
+    DOC_MARKERS.keywords,
+    '(the advert\'s keywords, most important first, one per line as "- keyword: used" or "- keyword: not in my CV", using the advert\'s exact wording)',
+    DOC_MARKERS.cv,
+    '(my tailored CV in markdown, at most two pages, the most relevant results first)',
+    DOC_MARKERS.letter,
+    '(a cover letter under 250 words that names the company and the role, ready to send, with [square brackets] only where I must fill something in)',
+    DOC_MARKERS.check,
+    '(a short bullet list: requirements my CV does not support, and anything you were unsure about)',
+  ].filter((l) => l !== null).join('\n');
+}
+
+// Splits Claude's reply into the CV, the cover letter and the notes to check. It accepts the exact markers and the
+// headings people tend to leave when they copy a reply ("## CV", "**Cover letter**"). Returns null when no CV is found.
+export function splitDocs(reply) {
+  const text = String(reply || '').replace(/\r\n/g, '\n');
+  const marker = (name) => new RegExp(`^[ \\t>*#_]*(?:={3,}\\s*${name}\\s*={3,}|${name}\\s*:?)[ \\t*_#]*$`, 'im');
+  const find = (names) => {
+    for (const n of names) { const m = marker(n).exec(text); if (m) return { start: m.index, end: m.index + m[0].length }; }
+    return null;
+  };
+  const cv = find(['cv', 'tailored cv', 'curriculum vitae', 'resume']);
+  const keywords = find(['keywords', 'key words', 'advert keywords']);
+  const letter = find(['cover letter', 'covering letter']);
+  const check = find(['check', 'things to check', 'gaps and checks']);
+  if (!cv) return null;
+  const parts = [keywords && { key: 'keywords', ...keywords }, { key: 'cv', ...cv }, letter && { key: 'letter', ...letter }, check && { key: 'check', ...check }].filter(Boolean).sort((a, b) => a.start - b.start);
+  const out = { cv: '', letter: '', check: '', keywords: [] };
+  parts.forEach((p, i) => { out[p.key] = text.slice(p.end, i + 1 < parts.length ? parts[i + 1].start : text.length).trim(); });
+  // a closing code fence left over from a copied reply
+  for (const k of ['cv', 'letter', 'check']) out[k] = out[k].replace(/^```\w*\n?|\n?```$/g, '').trim();
+  out.keywords = parseKeywords(typeof out.keywords === 'string' ? out.keywords : '');
+  return out.cv ? out : null;
+}
+
+// "- SQL: used", "- Power BI (not in my CV)", "1. Stakeholder management - used" become { word, supported }.
+export function parseKeywords(text) {
+  const out = [];
+  for (const raw of String(text || '').split('\n')) {
+    const line = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').replace(/[*_`]/g, '').trim();
+    if (!line) continue;
+    const m = /^(.*?)(?:\s*[:\u2013\u2014]\s*|\s+-\s+|\s*\()\s*(used|in (?:my |your )?cv|supported|yes|not in (?:my |your )?cv|not supported|missing|no)\b.*$/i.exec(line);
+    const word = (m ? m[1] : line).replace(/[\s:(\u2013\u2014-]+$/, '').trim();
+    if (!word || word.length > 60) continue;
+    const supported = m ? !/^(not|missing|no)\b/i.test(m[2]) : true;
+    if (!out.some((k) => k.word.toLowerCase() === word.toLowerCase())) out.push({ word, supported });
+  }
+  return out.slice(0, 20);
+}
+
+// Which keywords appear in a text, ignoring case and spacing ("Power BI" matches "power  bi").
+export function keywordsIn(text, keywords) {
+  const t = String(text || '').toLowerCase().replace(/\s+/g, ' ');
+  return keywords.map((k) => ({ ...k, found: t.includes(k.word.toLowerCase().replace(/\s+/g, ' ')) }));
+}
+
+// Adds keywords to the CV's skills section, or adds a "Key skills" section under the first heading when there is
+// none. Keywords already in the CV are left alone. Returns the new text and the words it added.
+export function addToSkills(cv, words) {
+  const text = String(cv || '').replace(/\r\n/g, '\n');
+  const lower = text.toLowerCase().replace(/\s+/g, ' ');
+  const missing = [...new Set(words.map((w) => String(w).trim()).filter(Boolean))].filter((w) => !lower.includes(w.toLowerCase().replace(/\s+/g, ' ')));
+  if (!missing.length) return { text, added: [] };
+  const lines = text.split('\n');
+  const head = lines.findIndex((l) => /^\s*(#{1,4}\s*|\*\*)?[^#\n]*\b(skills|key skills|technical skills|core skills|competencies)\b/i.test(l) && /^\s*(#{1,4}|\*\*)/.test(l));
+  if (head >= 0) {
+    // the end of that section: the next heading, or the end of the CV
+    let end = lines.findIndex((l, i) => i > head && /^\s*#{1,4}\s/.test(l));
+    if (end < 0) end = lines.length;
+    while (end > head + 1 && !lines[end - 1].trim()) end -= 1;
+    const bullets = lines.slice(head + 1, end).some((l) => /^\s*[-*•]\s/.test(l));
+    if (bullets) lines.splice(end, 0, ...missing.map((w) => `- ${w}`));
+    else if (end > head + 1) lines[end - 1] = `${lines[end - 1].replace(/[.\s]+$/, '')}, ${missing.join(', ')}`;   // a comma list: add to it
+    else lines.splice(end, 0, missing.join(', '));
+    return { text: lines.join('\n'), added: missing };
+  }
+  const first = lines.findIndex((l) => /^\s*#{1,4}\s/.test(l));
+  const section = ['', '## Key skills', ...missing.map((w) => `- ${w}`), ''];
+  if (first < 0) return { text: `${text.trim()}\n${section.join('\n')}`.trim(), added: missing };
+  // after the name heading and any short block under it (contact line, profile)
+  let at = first + 1;
+  while (at < lines.length && !/^\s*#{1,4}\s/.test(lines[at])) at += 1;
+  lines.splice(at, 0, ...section);
+  return { text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), added: missing };
+}
+
+// Asks Claude to work the chosen keywords into the CV and letter it already wrote. `confirmed` keywords are ones the
+// person says are true even though their CV does not show them.
+export function keywordsPrompt({ job, cv = '', tailoredCv = '', letter = '', keywords = [] }) {
+  const backed = keywords.filter((k) => !k.confirmed).map((k) => k.word);
+  const confirmed = keywords.filter((k) => k.confirmed).map((k) => k.word);
+  return [
+    `Revise my tailored CV and cover letter for ${job.title} at ${job.company}.`,
+    '',
+    'USE THESE KEYWORDS, WITH THIS EXACT WORDING',
+    backed.length ? `Supported by my CV: ${backed.join(', ')}` : null,
+    confirmed.length ? `I confirm these are true for me, though my CV does not show them yet: ${confirmed.join(', ')}. Add them to the skills section, and to a role only where my CV already describes related work.` : null,
+    '',
+    'RULES',
+    '- Work each keyword in where it fits naturally: the profile, the skills section, and the first bullet points of the most relevant roles.',
+    '- Do not invent employers, dates, results, numbers or qualifications. Keep everything else as it is unless a keyword needs it.',
+    '- Plain, direct British English.',
+    '',
+    'MY ORIGINAL CV, FOR THE FACTS',
+    cv.trim(),
+    '',
+    'THE TAILORED CV TO REVISE',
+    tailoredCv.trim(),
+    '',
+    'THE COVER LETTER TO REVISE',
+    letter.trim(),
+    '',
+    'REPLY IN EXACTLY THIS FORMAT',
+    DOC_MARKERS.keywords,
+    '(each keyword, one per line, as "- keyword: used")',
+    DOC_MARKERS.cv,
+    '(the revised CV in markdown)',
+    DOC_MARKERS.letter,
+    '(the revised cover letter)',
+    DOC_MARKERS.check,
+    '(anything I should check, as bullets)',
+  ].filter((l) => l !== null).join('\n');
+}
+
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Enough markdown for a CV: headings, bullet lists, bold, italic and paragraphs. Everything is escaped first.
+export function mdToHtml(md) {
+  const inline = (s) => escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, '$1<em>$2</em>');
+  const out = [];
+  let list = false, para = [];
+  const flush = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
+  const close = () => { if (list) { out.push('</ul>'); list = false; } };
+  for (const raw of String(md || '').replace(/\r\n/g, '\n').split('\n')) {
+    const line = raw.trimEnd();
+    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    const li = /^\s*[-*•]\s+(.*)$/.exec(line);
+    if (!line.trim()) { flush(); close(); continue; }
+    if (h) { flush(); close(); const n = Math.min(h[1].length + 1, 4); out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
+    if (li) { flush(); if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (/^-{3,}$/.test(line.trim())) { flush(); close(); out.push('<hr>'); continue; }
+    close(); para.push(line.trim());
+  }
+  flush(); close();
+  return out.join('\n');
 }

@@ -10,6 +10,7 @@ import {
   expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
   placeCoords, milesBetween, distanceMiles,
   nameHash, packRegister, registerHas, guessFromUrl, manualJob,
+  docsPrompt, splitDocs, mdToHtml, DOC_MARKERS, parseKeywords, keywordsIn, addToSkills, keywordsPrompt,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -702,7 +703,7 @@ test('boards found under the old rules are checked again, and two employers cann
 });
 
 test('well-known UK recruiters are tagged as agencies', () => {
-  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Robert Walters']) assert.ok(isAgency({ company: c, title: '' }), c);
+  for (const c of ['Harvey Nash', 'Goodman Masson', 'Oliver James Associates', 'Robert Walters', 'Hackajob Ltd', 'hackajob']) assert.ok(isAgency({ company: c, title: '' }), c);
   assert.ok(!isAgency({ company: 'Monzo Bank', title: '' }));
 });
 
@@ -782,4 +783,90 @@ test('when a board service is added, earlier misses are tried again', async () =
   assert.equal(cache.services, ATS.join(','));
   const again = await discoverBoards([], cache, { today: '2026-11-26', getJson, limit: 0, places: placesForBoards });
   assert.equal(again.retried, 0, 'only once');
+});
+
+// ---------- tailored CV and cover letter ----------
+
+test('the prompt holds the job, the advert, the CV, the rules and the reply format', () => {
+  const p = docsPrompt({ job: { title: 'Data Analyst', company: 'Hays', location: 'Leeds', pay: '£30,000', url: 'https://x.example/1', recruiter: true }, advert: 'SQL and Excel.', screenshots: 1, cv: 'Jane. SQL.' });
+  for (const part of ['Title: Data Analyst', 'Hays (a recruiter', 'Pay: £30,000', 'SQL and Excel.', 'screenshot of the advert is also attached', 'Jane. SQL.', 'Never invent', 'right to work', DOC_MARKERS.cv, DOC_MARKERS.letter, DOC_MARKERS.check]) assert.ok(p.includes(part), part);
+  assert.ok(p.indexOf(DOC_MARKERS.cv) < p.indexOf(DOC_MARKERS.letter) && p.indexOf(DOC_MARKERS.letter) < p.indexOf(DOC_MARKERS.check));
+  assert.ok(docsPrompt({ job: { title: 'T', company: 'C' }, advert: '', screenshots: 2, cv: 'x' }).includes('attached screenshots'));
+  assert.ok(!docsPrompt({ job: { title: 'T', company: 'C' }, cv: 'x' }).includes('Pay:'), 'no empty lines for missing details');
+});
+
+test('a reply splits into the CV, the letter and the checks', () => {
+  const r = splitDocs('Here you go!\n===CV===\n# Jane\n- SQL\n===COVER LETTER===\nDear team,\nHello.\n===CHECK===\n- No Tableau');
+  assert.deepEqual(r, { cv: '# Jane\n- SQL', letter: 'Dear team,\nHello.', check: '- No Tableau', keywords: [] });
+});
+
+test('a copied reply with headings instead of markers still splits', () => {
+  const r = splitDocs('## CV\n# Jane\n\n## Cover letter\nDear\n\n**Check**\n- x\n```');
+  assert.equal(r.cv, '# Jane');
+  assert.equal(r.letter, 'Dear');
+  assert.equal(r.check, '- x');
+  assert.deepEqual(splitDocs('===CV===\n# Jane'), { cv: '# Jane', letter: '', check: '', keywords: [] }, 'a letter may be missing');
+});
+
+test('a reply without a CV is not accepted', () => {
+  assert.equal(splitDocs('Sorry, I cannot help with that.'), null);
+  assert.equal(splitDocs(''), null);
+  assert.equal(splitDocs('===CV===\n\n===COVER LETTER===\nDear'), null, 'an empty CV');
+});
+
+test('markdown becomes safe HTML for printing', () => {
+  const h = mdToHtml('# Jane <script>\n**Data** analyst\n\n- SQL\n- *Python*\n---\nEnd');
+  assert.ok(h.includes('<h2>Jane &lt;script&gt;</h2>'), 'escaped, and the top heading is h2');
+  assert.ok(h.includes('<p><strong>Data</strong> analyst</p>'));
+  assert.ok(h.includes('<ul>\n<li>SQL</li>\n<li><em>Python</em></li>\n</ul>'));
+  assert.ok(h.includes('<hr>'));
+  assert.ok(!/<script/.test(h));
+});
+
+test('keywords come first: the prompt asks for the advert\'s exact words and a keyword list before the CV', () => {
+  const p = docsPrompt({ job: { title: 'Data Analyst', company: 'Acme' }, advert: 'SQL', cv: 'x' });
+  assert.ok(p.includes('Keywords come first'));
+  assert.ok(p.includes("advert's exact wording"));
+  assert.ok(p.includes('Never add a keyword my CV does not support'));
+  assert.ok(p.indexOf(DOC_MARKERS.keywords) < p.indexOf(DOC_MARKERS.cv), 'the keyword list is written before the CV');
+});
+
+test('the keyword list is read in the forms Claude tends to write it', () => {
+  const k = parseKeywords('- SQL: used\n- Power BI: not in my CV\n2. Stakeholder management \u2013 used\n- **Excel** (used)\n- Tableau - missing\n- Data visualisation\n- SQL: used');
+  assert.deepEqual(k, [
+    { word: 'SQL', supported: true },
+    { word: 'Power BI', supported: false },
+    { word: 'Stakeholder management', supported: true },
+    { word: 'Excel', supported: true },
+    { word: 'Tableau', supported: false },
+    { word: 'Data visualisation', supported: true },
+  ], 'repeats are dropped, and a bare keyword counts as supported');
+  const r = splitDocs('===KEYWORDS===\n- SQL: used\n===CV===\n# Jane\nSQL');
+  assert.deepEqual(r.keywords, [{ word: 'SQL', supported: true }]);
+});
+
+test('keywords are checked against the tailored CV, ignoring case and spacing', () => {
+  const k = keywordsIn('Built SQL reports in power  bi.', [{ word: 'SQL', supported: true }, { word: 'Power BI', supported: true }, { word: 'Tableau', supported: false }]);
+  assert.deepEqual(k.map((x) => x.found), [true, true, false]);
+});
+
+test('chosen keywords are added to the skills section the CV already has', () => {
+  const bullets = addToSkills('# Jane\n\n## Skills\n- SQL\n- Excel\n\n## Experience\n- Reports', ['Tableau', 'sql', 'Power BI']);
+  assert.equal(bullets.text, '# Jane\n\n## Skills\n- SQL\n- Excel\n- Tableau\n- Power BI\n\n## Experience\n- Reports');
+  assert.deepEqual(bullets.added, ['Tableau', 'Power BI'], 'SQL is already there, in any case');
+  assert.equal(addToSkills('# Jane\n\n**Skills**\nSQL, Excel.\n\n## Experience\nx', ['Tableau']).text, '# Jane\n\n**Skills**\nSQL, Excel, Tableau\n\n## Experience\nx', 'a comma list grows');
+});
+
+test('without a skills section, one is added after the opening part of the CV', () => {
+  assert.equal(addToSkills('# Jane\nProfile text\n## Experience\nx', ['Tableau']).text, '# Jane\nProfile text\n\n## Key skills\n- Tableau\n\n## Experience\nx');
+  assert.equal(addToSkills('Plain CV', ['Tableau']).text, 'Plain CV\n\n## Key skills\n- Tableau');
+  assert.deepEqual(addToSkills('SQL', ['SQL']), { text: 'SQL', added: [] });
+});
+
+test('the rewrite prompt keeps the facts and separates keywords the person vouches for', () => {
+  const p = keywordsPrompt({ job: { title: 'Analyst', company: 'Acme' }, cv: 'ORIGINAL', tailoredCv: 'TAILORED', letter: 'LETTER', keywords: [{ word: 'SQL', confirmed: false }, { word: 'Tableau', confirmed: true }] });
+  assert.ok(p.includes('Supported by my CV: SQL'));
+  assert.ok(p.includes('I confirm these are true for me, though my CV does not show them yet: Tableau'));
+  for (const part of ['ORIGINAL', 'TAILORED', 'LETTER', 'Do not invent', DOC_MARKERS.cv, DOC_MARKERS.letter]) assert.ok(p.includes(part), part);
+  assert.ok(!keywordsPrompt({ job: { title: 'A', company: 'B' }, keywords: [{ word: 'SQL', confirmed: false }] }).includes('I confirm'), 'no vouching line when there is nothing to vouch for');
 });

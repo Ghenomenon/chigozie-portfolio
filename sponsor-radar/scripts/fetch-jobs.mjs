@@ -131,6 +131,12 @@ async function fromBoards(rawSoFar, sponsorMap) {
     const key = normCompany(s.name);
     if (key && !cache.found[key]) cache.found[key] = { name: s.name, ats: s.ats, slug: s.slug, found: today };
   }
+  // a board found before its employer was known as a recruiter is dropped, and not searched for again
+  let agencies = 0;
+  for (const [key, b] of Object.entries(cache.found)) {
+    if (isAgency({ company: b.name, title: '' })) { delete cache.found[key]; cache.missed[key] = today; agencies++; }
+  }
+  if (agencies) console.log(`Employer boards: dropped ${agencies} that belong to recruiters`);
   const places = (() => { try { return JSON.parse(readFileSync(join(root, 'data', 'places.json'), 'utf8')); } catch { return null; } })();
   const fetchOne = (url) => getJson(url);
 

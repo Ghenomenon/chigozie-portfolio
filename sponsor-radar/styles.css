@@ -429,6 +429,52 @@ textarea { min-height: 0; padding: 14px 16px; border-radius: 20px; font: 14px/1.
 #setup-form .btn.wide { margin-top: 18px; }
 .foot { text-align: center; margin: 22px 0 6px; }
 
+/* ---------- the Apply sheet ---------- */
+.stepper { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 16px 0 18px; padding: 5px; border-radius: 999px; background: var(--tint); }
+.stepper button { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: 650 13px/1.1 var(--text); cursor: pointer; }
+.stepper button span { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 999px; background: var(--card); font-size: 11px; font-weight: 800; flex: none; }
+.stepper button.on { background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.stepper button.on span { background: var(--brand); color: var(--on-brand); }
+.step { display: grid; gap: 12px; }
+.step > p { margin: 0; }
+.step textarea, #reply { width: 100%; font: 400 15px/1.5 var(--text); }
+.row.three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.row.three .btn { padding: 0 8px; font-size: 14px; text-align: center; }
+.note-warn { margin: 0; padding: 10px 14px; border-radius: 16px; background: var(--warn-bg); color: var(--warn); font-weight: 600; }
+.doc-tabs { display: inline-flex; gap: 6px; padding: 4px; border-radius: 999px; background: var(--tint); margin-bottom: 8px; }
+.doc-tabs button { min-height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--ink); font: 650 14px var(--text); cursor: pointer; }
+.doc-tabs button.on { background: var(--card); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+#doc { min-height: 320px; font: 400 15px/1.5 var(--text); }
+.stepper button { white-space: nowrap; }
+.kw-box { margin: 0 0 12px; padding: 12px 14px; border-radius: 20px; background: var(--tint); }
+.kw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 0 0 4px; }
+.kw-head strong, .kw-head span { white-space: nowrap; }
+.kw-head span { font-size: 14px; }
+.kw-box .chips { margin: 0; }
+.kw-box .small { margin: 8px 0 0; }
+.chip.off { background: transparent; color: var(--muted); border-style: dashed; }
+button.chip.kw { font: inherit; font-size: 13px; font-weight: 600; min-height: 34px; cursor: pointer; }
+.kw-help { margin: 0 0 8px; }
+.kw-add { display: flex; gap: 8px; margin-top: 10px; }
+.kw-add input { flex: 1; min-width: 0; min-height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; }
+.kw-add .btn { min-height: 40px; }
+.kw-box .row { margin-top: 10px; }
+.check-box summary { font-weight: 650; }
+.check-box ul { margin: 8px 0 0; padding-left: 20px; }
+.small { font-size: 13px; }
+.print-doc { display: none; }
+@media print {
+  body.printing > *:not(.print-doc), body.printing dialog { display: none !important; }
+  body.printing { background: #fff; }
+  body.printing .print-doc { display: block; color: #000; font: 11pt/1.45 Georgia, 'Times New Roman', serif; }
+  .print-doc h2 { font-size: 18pt; margin: 0 0 6pt; }
+  .print-doc h3 { font-size: 12.5pt; margin: 12pt 0 4pt; border-bottom: 1px solid #999; }
+  .print-doc h4 { font-size: 11pt; margin: 8pt 0 2pt; }
+  .print-doc p, .print-doc ul { margin: 0 0 6pt; }
+  .print-doc ul { padding-left: 16pt; }
+  @page { margin: 16mm; }
+}
+
 /* ---------- motion: a soft blur that clears as things settle ---------- */
 /* The page sets data-motion="on" when the phone allows motion, or when Motion is set to Always on in Settings. */
 @keyframes settle {
