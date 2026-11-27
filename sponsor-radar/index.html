@@ -240,51 +240,82 @@
         <button class="icon-btn dark" value="close" aria-label="Close">&times;</button>
       </div>
 
-      <ol class="steps">
-        <li>
-          <strong>Get the advert</strong>
-          <p id="advert-note" class="muted"></p>
-          <div class="row stack">
-            <button type="button" id="read-link" class="btn">Read the advert from its link</button>
-            <label class="btn">Add screenshot<input id="shots" type="file" accept="image/*" multiple hidden></label>
+      <nav class="stepper" aria-label="Steps">
+        <button type="button" data-step="advert"><span>1</span>Advert</button>
+        <button type="button" data-step="docs"><span>2</span>Documents</button>
+        <button type="button" data-step="send"><span>3</span>Apply</button>
+      </nav>
+
+      <section id="step-advert" class="step">
+        <p id="read-note" class="muted" role="status"></p>
+        <textarea id="advert" rows="8" aria-label="Advert text" placeholder="The advert text appears here. You can paste or edit it."></textarea>
+        <div class="row">
+          <button type="button" id="read-link" class="btn">Read from link</button>
+          <label class="btn">Add screenshot<input id="shots" type="file" accept="image/*" multiple hidden></label>
+        </div>
+        <div id="shot-list" class="thumbs"></div>
+        <button type="button" id="to-docs" class="btn wide primary">Next: CV and letter</button>
+      </section>
+
+      <section id="step-docs" class="step" hidden>
+        <p id="need-cv" class="note-warn" hidden>Add your CV in Settings first. Claude works only from the facts in it.</p>
+
+        <div id="doc-area" hidden>
+          <div class="doc-tabs" role="group" aria-label="Document">
+            <button type="button" data-doc="cv" class="on" aria-pressed="true">CV</button>
+            <button type="button" data-doc="letter" aria-pressed="false">Cover letter</button>
           </div>
-          <p id="read-note" class="muted" role="status"></p>
-          <div id="shot-list" class="thumbs"></div>
-          <details id="advert-details" hidden>
-            <summary>Advert text found</summary>
-            <textarea id="advert" rows="6" aria-label="Advert text"></textarea>
+          <textarea id="doc" rows="16" aria-label="Document text"></textarea>
+          <div class="row">
+            <button type="button" id="doc-copy" class="btn">Copy</button>
+            <button type="button" id="doc-pdf" class="btn">Save as PDF</button>
+          </div>
+          <p id="doc-note" class="muted" role="status"></p>
+          <details id="check-box" class="check-box" hidden>
+            <summary>Check before you send (<span id="check-count">0</span>)</summary>
+            <ul id="check-list"></ul>
           </details>
-        </li>
-        <li>
-          <strong>Copy the prompt</strong>
-          <p class="muted">It holds the advert, your CV and strict rules: no invented facts, and no answers about your right to work.</p>
-          <button type="button" id="copy" class="btn wide">Copy prompt</button>
-          <p id="copy-note" class="muted" role="status"></p>
-        </li>
-        <li>
-          <strong>Paste it into Claude</strong>
-          <p id="claude-note" class="muted">You get a tailored CV, a cover letter and draft answers. Check every line before you use it.</p>
-          <button type="button" id="share" class="btn wide" hidden>Share prompt and screenshot</button>
-          <a id="open-claude" class="btn wide" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Open Claude</a>
-        </li>
-        <li>
-          <strong>Submit the application yourself</strong>
-          <p class="muted">Use the employer's form. The app never sends anything for you.</p>
-          <a id="open-advert" class="btn wide" href="#" target="_blank" rel="noopener noreferrer">Open advert</a>
-        </li>
-        <li>
-          <strong>Record it</strong>
-          <label class="check"><input type="checkbox" id="did-apply"> I submitted my application</label>
-          <button type="button" id="mark-applied" class="btn wide primary" disabled>Mark as Applied</button>
-        </li>
-      </ol>
-      <details>
-        <summary>Preview prompt</summary>
-        <textarea id="prompt-preview" rows="10" readonly></textarea>
-      </details>
+          <p class="small muted">Saved on this phone with this role. Read every line before you use it.</p>
+        </div>
+        <p id="rewrite-head" class="small muted" hidden>Not right? Write them again:</p>
+        <div id="write-api">
+          <button type="button" id="write" class="btn wide primary">Write with Claude</button>
+          <p id="write-note" class="muted" role="status"></p>
+        </div>
+
+        <div id="write-paste">
+          <p class="muted">Claude writes both from your CV and the advert. It never invents facts.</p>
+          <div class="row three">
+            <button type="button" id="copy" class="btn">1. Copy prompt</button>
+            <a id="open-claude" class="btn" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">2. Open Claude</a>
+            <button type="button" id="paste" class="btn primary">3. Paste reply</button>
+          </div>
+          <button type="button" id="share" class="btn wide" hidden>Share prompt and screenshots to Claude</button>
+          <p id="paste-note" class="muted" role="status"></p>
+          <details id="reply-box">
+            <summary>Paste the reply by hand</summary>
+            <textarea id="reply" rows="5" aria-label="Claude's reply"></textarea>
+          </details>
+          <a id="key-hint" href="#" class="small" hidden>Write in the app instead: add your Claude API key in Settings</a>
+        </div>
+
+        <button type="button" id="to-send" class="btn wide primary">Next: apply</button>
+        <details>
+          <summary>See the prompt</summary>
+          <textarea id="prompt-preview" rows="8" readonly aria-label="Prompt"></textarea>
+        </details>
+      </section>
+
+      <section id="step-send" class="step" hidden>
+        <p class="muted">Send your application on the employer's site. The app never sends anything for you.</p>
+        <a id="open-advert" class="btn wide" href="#" target="_blank" rel="noopener noreferrer">Open the advert</a>
+        <button type="button" id="mark-applied" class="btn wide primary">I have applied</button>
+        <p id="applied-note" class="muted" role="status"></p>
+      </section>
     </form>
   </dialog>
 
   <script type="module" src="app.js"></script>
+  <article id="print-doc" class="print-doc" aria-hidden="true"></article>
 </body>
 </html>

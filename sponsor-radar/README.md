@@ -26,15 +26,18 @@ Feed settings (search terms, noise filters, sponsorship wording) are in `sponsor
 
 ## Apply button
 
-Each role has an Apply button with five steps:
+Each role has an Apply button. It opens a sheet with three steps. Tap a step to move between them.
 
-1. Get the advert. Read it from its link, or add a screenshot. See Advert reader below.
-2. Copy the prompt. It holds the advert, the person's CV and strict rules: no invented facts, and no answers about right to work or visa status.
-3. Paste it into Claude. It returns a tailored CV, a cover letter and draft answers to common form questions.
-4. Submit the application on the employer's form. The app never sends anything.
-5. Tick the box and mark the role as Applied. The date is saved in the tracker.
+1. **Advert.** The advert text, read from its link when you open the sheet. Edit it, read it again, or add up to four screenshots.
+2. **Documents.** Your tailored CV and cover letter. Copy the prompt, open Claude, then paste Claude's whole reply back. The app splits it into the CV and the letter.
+   - Edit either one in the app. Copy it, or save it as a PDF through the phone's print menu.
+   - "Check before you send" lists what your CV does not cover and anything Claude was unsure about.
+   - The documents are saved on the phone with the role. Opening Apply again goes straight to them.
+3. **Apply.** Open the advert and send the application on the employer's site. The app never sends anything. Then tap I have applied. The date goes into the tracker.
 
-The person pastes their CV once in Settings. It is stored on their phone only.
+Sponsor Radar does not call Claude itself. A public app calling Claude on one key would let anyone spend that key's money. Writing in the app belongs with accounts in the paid tier. Job Radar, the personal app, can write in the app with your own API key.
+
+The sheet is in `scripts/apply-sheet.mjs`. Job Radar uses the same file.
 
 ## Advert reader
 

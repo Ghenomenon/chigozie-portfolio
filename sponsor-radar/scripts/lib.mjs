@@ -561,3 +561,92 @@ export function parseReedDate(s) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s || '');
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
+
+// ---------- tailored CV and cover letter ----------
+
+export const DOC_MARKERS = { cv: '===CV===', letter: '===COVER LETTER===', check: '===CHECK===' };
+
+// The instruction both apps send to Claude, by API or by copy and paste. The reply comes back in three marked parts.
+export function docsPrompt({ job, advert = '', screenshots = 0, cv = '' }) {
+  const text = advert.trim();
+  let advertPart;
+  if (text && screenshots) advertPart = `${text}\n\n(A screenshot of the advert is also attached. Use it where the text above is missing or unclear.)`;
+  else if (text) advertPart = text;
+  else if (screenshots) advertPart = `(The advert is in the attached screenshot${screenshots > 1 ? 's' : ''}. Read it from there.)`;
+  else advertPart = '(Not available. Work from the job title and say what you could not check.)';
+  return [
+    'Tailor my CV and write a cover letter for this job.',
+    '',
+    'RULES',
+    '- Use only facts that appear in MY CV. Never invent employers, dates, tools, qualifications or numbers.',
+    '- Reword and reorder to match the advert. Keep my skill levels as written.',
+    '- If the advert asks for something my CV does not support, do not cover the gap. List it under CHECK.',
+    '- Do not mention my right to work, visa status or sponsorship.',
+    '- Plain, direct British English. No filler phrases.',
+    '',
+    'JOB',
+    `Title: ${job.title}`,
+    `Company: ${job.company}${job.recruiter ? ' (a recruiter, so the real employer may differ)' : ''}`,
+    `Location: ${job.location || 'UK'}`,
+    job.pay ? `Pay: ${job.pay}` : null,
+    job.url ? `Advert link: ${job.url}` : null,
+    '',
+    'ADVERT',
+    advertPart,
+    '',
+    'MY CV',
+    cv.trim(),
+    '',
+    'REPLY IN EXACTLY THIS FORMAT, WITH THESE THREE MARKER LINES AND NOTHING BEFORE THE FIRST ONE',
+    DOC_MARKERS.cv,
+    '(my tailored CV in markdown, at most two pages, the most relevant results first)',
+    DOC_MARKERS.letter,
+    '(a cover letter under 250 words that names the company and the role, ready to send, with [square brackets] only where I must fill something in)',
+    DOC_MARKERS.check,
+    '(a short bullet list: requirements my CV does not support, and anything you were unsure about)',
+  ].filter((l) => l !== null).join('\n');
+}
+
+// Splits Claude's reply into the CV, the cover letter and the notes to check. It accepts the exact markers and the
+// headings people tend to leave when they copy a reply ("## CV", "**Cover letter**"). Returns null when no CV is found.
+export function splitDocs(reply) {
+  const text = String(reply || '').replace(/\r\n/g, '\n');
+  const marker = (name) => new RegExp(`^[ \\t>*#_]*(?:={3,}\\s*${name}\\s*={3,}|${name}\\s*:?)[ \\t*_#]*$`, 'im');
+  const find = (names) => {
+    for (const n of names) { const m = marker(n).exec(text); if (m) return { start: m.index, end: m.index + m[0].length }; }
+    return null;
+  };
+  const cv = find(['cv', 'tailored cv', 'curriculum vitae', 'resume']);
+  const letter = find(['cover letter', 'covering letter']);
+  const check = find(['check', 'things to check', 'gaps and checks']);
+  if (!cv) return null;
+  const parts = [{ key: 'cv', ...cv }, letter && { key: 'letter', ...letter }, check && { key: 'check', ...check }].filter(Boolean).sort((a, b) => a.start - b.start);
+  const out = { cv: '', letter: '', check: '' };
+  parts.forEach((p, i) => { out[p.key] = text.slice(p.end, i + 1 < parts.length ? parts[i + 1].start : text.length).trim(); });
+  // a closing code fence left over from a copied reply
+  for (const k of Object.keys(out)) out[k] = out[k].replace(/^```\w*\n?|\n?```$/g, '').trim();
+  return out.cv ? out : null;
+}
+
+const escapeHtml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Enough markdown for a CV: headings, bullet lists, bold, italic and paragraphs. Everything is escaped first.
+export function mdToHtml(md) {
+  const inline = (s) => escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)(.+?)\*(?!\*)/g, '$1<em>$2</em>');
+  const out = [];
+  let list = false, para = [];
+  const flush = () => { if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; } };
+  const close = () => { if (list) { out.push('</ul>'); list = false; } };
+  for (const raw of String(md || '').replace(/\r\n/g, '\n').split('\n')) {
+    const line = raw.trimEnd();
+    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    const li = /^\s*[-*•]\s+(.*)$/.exec(line);
+    if (!line.trim()) { flush(); close(); continue; }
+    if (h) { flush(); close(); const n = Math.min(h[1].length + 1, 4); out.push(`<h${n}>${inline(h[2])}</h${n}>`); continue; }
+    if (li) { flush(); if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${inline(li[1])}</li>`); continue; }
+    if (/^-{3,}$/.test(line.trim())) { flush(); close(); out.push('<hr>'); continue; }
+    close(); para.push(line.trim());
+  }
+  flush(); close();
+  return out.join('\n');
+}

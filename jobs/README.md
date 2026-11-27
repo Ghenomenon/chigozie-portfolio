@@ -13,15 +13,20 @@ Search terms, pay floor and filter words are in `jobs/config.json`.
 
 ## Apply button
 
-Each role has an Apply button. It opens a sheet that guides you through five steps:
+Each role has an Apply button. It opens a sheet with three steps. Tap a step to move between them.
 
-1. Get the advert. Read it from its link, or add a screenshot. See Advert reader below.
-2. Copy the prompt. It holds the advert, your CV from `jobs/cv.md` (or your edited copy in Settings) and strict rules: no invented facts, and no answers about right to work or visa status.
-3. Paste it into Claude. You get a tailored CV, a cover letter and draft answers to common form questions.
-4. Submit the application yourself on the employer's form. The app never sends anything.
-5. Tick the box and mark the role as Applied. The date is saved in your tracker.
+1. **Advert.** The advert text, read from its link when you open the sheet. Edit it, read it again, or add up to four screenshots.
+2. **Documents.** Your tailored CV and cover letter.
+   - With your Claude API key saved in Settings, tap Write with Claude. Claude Opus 5.5 writes both in under a minute, from your CV and the advert only. Screenshots go with the request. Each one costs a few pence on your Anthropic account.
+   - Without a key, copy the prompt, open Claude, then paste Claude's whole reply back. The app splits it into the CV and the letter.
+   - Edit either one in the app. Copy it, or save it as a PDF through the phone's print menu.
+   - "Check before you send" lists what your CV does not cover and anything Claude was unsure about.
+   - The documents are saved on your phone with the role. Opening Apply again goes straight to them.
+3. **Apply.** Open the advert and send the application on the employer's site. The app never sends anything. Then tap I have applied. The date goes into your tracker.
 
-`jobs/cv.md` is public because the site is public. Edit your private version in Settings. It stays on your phone.
+Your CV comes from `jobs/cv.md`, or your edited copy in Settings, which stays on your phone.
+
+**The API key.** It is saved on your phone and sent only to Anthropic, straight from the phone. There is no server in between, so nothing on the website holds it. Set a monthly spend limit in the Anthropic console. The app uses the Anthropic SDK (`vendor/anthropic-sdk.min.mjs`, version 1.14.0, MIT licence), bundled into one file and loaded only when you tap Write with Claude. With `server-side-fallback`, a request a safety check declines is retried on a fallback model.
 
 ## Advert reader
 

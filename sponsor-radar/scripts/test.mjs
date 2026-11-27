@@ -10,6 +10,7 @@ import {
   expandRoles, filterReason, explainFilters, FILTER_STEPS, titleMatchesRoles, idsOf, isStale,
   placeCoords, milesBetween, distanceMiles,
   nameHash, packRegister, registerHas, guessFromUrl, manualJob,
+  docsPrompt, splitDocs, mdToHtml, DOC_MARKERS,
 } from './lib.mjs';
 
 const feed = JSON.parse(readFileSync(new URL('../config.json', import.meta.url), 'utf8'));
@@ -782,4 +783,42 @@ test('when a board service is added, earlier misses are tried again', async () =
   assert.equal(cache.services, ATS.join(','));
   const again = await discoverBoards([], cache, { today: '2026-11-26', getJson, limit: 0, places: placesForBoards });
   assert.equal(again.retried, 0, 'only once');
+});
+
+// ---------- tailored CV and cover letter ----------
+
+test('the prompt holds the job, the advert, the CV, the rules and the reply format', () => {
+  const p = docsPrompt({ job: { title: 'Data Analyst', company: 'Hays', location: 'Leeds', pay: '£30,000', url: 'https://x.example/1', recruiter: true }, advert: 'SQL and Excel.', screenshots: 1, cv: 'Jane. SQL.' });
+  for (const part of ['Title: Data Analyst', 'Hays (a recruiter', 'Pay: £30,000', 'SQL and Excel.', 'screenshot of the advert is also attached', 'Jane. SQL.', 'Never invent', 'right to work', DOC_MARKERS.cv, DOC_MARKERS.letter, DOC_MARKERS.check]) assert.ok(p.includes(part), part);
+  assert.ok(p.indexOf(DOC_MARKERS.cv) < p.indexOf(DOC_MARKERS.letter) && p.indexOf(DOC_MARKERS.letter) < p.indexOf(DOC_MARKERS.check));
+  assert.ok(docsPrompt({ job: { title: 'T', company: 'C' }, advert: '', screenshots: 2, cv: 'x' }).includes('attached screenshots'));
+  assert.ok(!docsPrompt({ job: { title: 'T', company: 'C' }, cv: 'x' }).includes('Pay:'), 'no empty lines for missing details');
+});
+
+test('a reply splits into the CV, the letter and the checks', () => {
+  const r = splitDocs('Here you go!\n===CV===\n# Jane\n- SQL\n===COVER LETTER===\nDear team,\nHello.\n===CHECK===\n- No Tableau');
+  assert.deepEqual(r, { cv: '# Jane\n- SQL', letter: 'Dear team,\nHello.', check: '- No Tableau' });
+});
+
+test('a copied reply with headings instead of markers still splits', () => {
+  const r = splitDocs('## CV\n# Jane\n\n## Cover letter\nDear\n\n**Check**\n- x\n```');
+  assert.equal(r.cv, '# Jane');
+  assert.equal(r.letter, 'Dear');
+  assert.equal(r.check, '- x');
+  assert.deepEqual(splitDocs('===CV===\n# Jane'), { cv: '# Jane', letter: '', check: '' }, 'a letter may be missing');
+});
+
+test('a reply without a CV is not accepted', () => {
+  assert.equal(splitDocs('Sorry, I cannot help with that.'), null);
+  assert.equal(splitDocs(''), null);
+  assert.equal(splitDocs('===CV===\n\n===COVER LETTER===\nDear'), null, 'an empty CV');
+});
+
+test('markdown becomes safe HTML for printing', () => {
+  const h = mdToHtml('# Jane <script>\n**Data** analyst\n\n- SQL\n- *Python*\n---\nEnd');
+  assert.ok(h.includes('<h2>Jane &lt;script&gt;</h2>'), 'escaped, and the top heading is h2');
+  assert.ok(h.includes('<p><strong>Data</strong> analyst</p>'));
+  assert.ok(h.includes('<ul>\n<li>SQL</li>\n<li><em>Python</em></li>\n</ul>'));
+  assert.ok(h.includes('<hr>'));
+  assert.ok(!/<script/.test(h));
 });
