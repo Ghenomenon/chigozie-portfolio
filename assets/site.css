@@ -39,3 +39,38 @@ main.case-body p.tag{color:var(--muted)}
 main.case-body a:not(.btn){color:var(--green)}
 main.case-body .track{background:var(--soft)}
 @media(min-width:1001px){.project-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* work-with-me */
+.wm-hero{padding-block:60px 30px}
+.wm-hero h1{font-size:clamp(36px,5.5vw,64px);max-width:18ch;margin-top:12px}
+.wm-hero h1 em{font-style:italic;color:var(--green)}
+.wm-lead{max-width:640px;font-size:18px;margin:24px 0 28px}
+.wm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.wm-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:26px;display:flex;flex-direction:column;gap:12px}
+.wm-card h3{font-size:24px}
+.wm-card p,.wm-card ul{font-size:14px}
+.wm-card h3.eyebrow{font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.13em;text-transform:uppercase;margin:0}
+.wm-card ul{margin:0;padding-left:18px;color:var(--muted)}
+.wm-card .text-link{margin-top:auto;font-size:13px}
+.wm-card .wm-price{font:30px Georgia,serif;color:var(--ink);letter-spacing:-.03em}
+.wm-note{font-size:14px;margin-top:20px;max-width:760px}
+.wm-note strong{color:var(--ink)}
+.wm-steps{list-style:none;counter-reset:wm;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;padding:0;margin:0}
+.wm-steps li{counter-increment:wm;border-top:1px solid var(--line);padding-top:16px;font-size:14px;color:var(--muted)}
+.wm-steps li::before{content:counter(wm,decimal-leading-zero);display:block;font:11px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.13em;color:var(--green);margin-bottom:8px}
+.wm-steps strong{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+.wm-terms{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:0 40px}
+.wm-terms li{border-top:1px solid var(--line);padding:16px 0;font-size:14px;color:var(--muted)}
+.wm-terms strong{display:block;color:var(--ink);font-size:15px}
+.wm-faq{border-top:1px solid var(--line);padding:16px 0}
+.wm-faq:last-of-type{border-bottom:1px solid var(--line)}
+.wm-faq summary{cursor:pointer;font-weight:650;font-size:15px;color:var(--ink)}
+.wm-faq p{margin-top:10px;font-size:14px;max-width:70ch}
+.wm-band{margin-block:20px;background:var(--soft);border-radius:12px;padding:32px 40px;display:grid;grid-template-columns:1.5fr auto;gap:30px;align-items:center}
+.wm-band .btn{justify-self:start}
+.wm-band h2{font-size:clamp(26px,3vw,36px);margin:8px 0}
+.wm-band p:not(.eyebrow){font-size:14px}
+@media(max-width:1000px){.wm-grid,.wm-steps{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.wm-grid,.wm-steps,.wm-terms,.wm-band{grid-template-columns:1fr}.wm-band{padding:24px}.wm-hero{padding-block:40px 20px}}
+.nav nav a{white-space:nowrap}
+@media(min-width:701px) and (max-width:860px){.nav{padding-inline:24px;gap:12px}.nav nav{gap:10px;font-size:12px}.nav .brand{white-space:nowrap}}
