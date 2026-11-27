@@ -73,14 +73,17 @@ background:rgba(20,5,40,.55);color:var(--cream);font-family:inherit}
 <script>
 window.onerror = function(m, src, line){ var a = document.getElementById("app"); if (a) a.innerHTML = '<p style="padding:20px 0;font-size:16px;line-height:1.5">Page error: ' + m + ' (line ' + line + ')</p>' };
 var NL = String.fromCharCode(10);
-var S = null, first = true, openIdx = -1, showPay = false, showWeek = false, askUndo = false, q = [], wake = null;
+var S = null, first = true, openIdx = -1, showPay = false, showWeek = false, askUndo = false;
 var pending = null;
 function send(a){
   clearTimeout(pending);
   pending = setTimeout(function(){ setToast("No reply from Scriptable. Close this page and use Log Progress.") }, 4000);
-  if (wake){ var w = wake; wake = null; w(a) } else q.push(a);
+  var f = document.createElement("iframe");
+  f.style.display = "none";
+  f.src = "https://goal.local/act?d=" + encodeURIComponent(JSON.stringify(a));
+  document.body.appendChild(f);
+  setTimeout(function(){ if (f.parentNode) f.parentNode.removeChild(f) }, 1500);
 }
-function waitAction(cb){ if (q.length) cb(q.shift()); else wake = cb }
 function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;"}[c] }) }
 function el(id){ return document.getElementById(id) }
 function setToast(m){ if (el("toast")) el("toast").textContent = m }
@@ -256,16 +259,16 @@ function J(x) {
 }
 
 const wv = new WebView()
-await wv.loadHTML(HOME.replace("__INIT__", () => J(build(""))))
-let closed = false
-const presented = wv.present(true).then(() => { closed = true })
-while (!closed) {
-  const act = await Promise.race([
-    wv.evaluateJavaScript("waitAction(completion)", true),
-    presented.then(() => null)
-  ])
-  if (!act) break
-  const toast = handle(act)
-  await wv.evaluateJavaScript("setState(" + J(build(toast)) + ")", false)
+wv.shouldAllowRequest = (req) => {
+  const url = String(req.url || "")
+  if (url.indexOf("https://goal.local/act") !== 0) return true
+  try {
+    const a = JSON.parse(decodeURIComponent(url.split("?d=")[1] || ""))
+    const toast = handle(a)
+    wv.evaluateJavaScript("setState(" + J(build(toast)) + ")", false).catch(() => {})
+  } catch (e) {}
+  return false
 }
+await wv.loadHTML(HOME.replace("__INIT__", () => J(build(""))))
+await wv.present(true)
 Script.complete()
